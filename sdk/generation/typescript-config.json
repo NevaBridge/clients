@@ -1,0 +1,9 @@
+{
+  "disallowAdditionalPropertiesIfNotPresent": false,
+  "enumUnknownDefaultCase": false,
+  "hideGenerationTimestamp": true,
+  "importFileExtension": ".js",
+  "npmName": "@nevabridge/sdk",
+  "npmVersion": "0.0.1",
+  "supportsES6": true
+}

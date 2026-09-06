@@ -1,0 +1,5 @@
+node_modules/
+**/dist/
+
+# Pinned third-party tooling fetched and checksum-verified on demand, never committed.
+.tools/

@@ -1,0 +1,946 @@
+openapi: 3.1.0
+
+info:
+  title: NevaBridge Tenant Integration API
+  version: "1.0.0"
+  summary: The supported NevaBridge operations for a tenant's own backend.
+  description: |
+    This contract covers the operations a tenant's trusted backend may call to run a
+    NevaBridge reporting conversation and finalize the report it produces.
+
+    **Supported surface.** Only the operations in this document are supported
+    commitments. A NevaBridge API key is tenant-wide and the gateway does not
+    restrict it to these paths, so other routes may answer a request; they are
+    internal, may change without notice, and are not covered by any compatibility
+    promise. Build against this document only.
+
+    **Trust boundary.** The caller is the tenant's backend, not a browser. The API
+    key must never reach an end user's device. `X-Actor-Id` is a correlation value
+    the tenant chooses and NevaBridge stores verbatim; it is not an authorization
+    boundary, and NevaBridge does not check that a caller "owns" the actor it names.
+    `X-Actor-Roles` is trusted audience context from that backend. Tenant isolation
+    comes from the API key alone.
+
+servers:
+  - url: https://tenant.api.nevabridge.com
+    description: Production
+  - url: https://tenant.api.sandbox.nevabridge.com
+    description: Sandbox
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Conversations
+    description: Running a reporting conversation and reading it back.
+  - name: Reports
+    description: Finalizing the structured report a conversation produced.
+
+paths:
+  /v1/products/{productId}/conversations:
+    post:
+      operationId: startConversation
+      summary: Start a conversation
+      description: |
+        Starts a reporting conversation for one product and posts its first user
+        message in the same call. The response carries that message, the
+        assistant's reply, and the reports the turn produced.
+
+        This is the only operation that establishes the reporter's identity, so
+        `X-Actor-Id` is required here and not accepted as an identity on later
+        calls.
+      tags: [Conversations]
+      parameters:
+        - $ref: "#/components/parameters/ProductId"
+        - $ref: "#/components/parameters/ActorId"
+        - $ref: "#/components/parameters/ActorName"
+        - $ref: "#/components/parameters/ActorRoles"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartConversationRequest"
+            examples:
+              minimal:
+                summary: A first message and nothing else
+                value:
+                  userMessage:
+                    content: The checkout page shows a blank screen after I click Pay.
+              withApplicationContext:
+                summary: With the reporting application's own context
+                value:
+                  userMessage:
+                    content: The checkout page shows a blank screen after I click Pay.
+                  applicationContext:
+                    accountId: acct-4821
+                    plan: business
+                    environment: production
+      responses:
+        "201":
+          description: The conversation was created and the first turn completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationTurn"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "402":
+          $ref: "#/components/responses/QuotaExceeded"
+        "409":
+          $ref: "#/components/responses/ModelInvocationFailure"
+        "429":
+          $ref: "#/components/responses/ModelInvocationFailure"
+        "500":
+          $ref: "#/components/responses/InternalServerFailure"
+        "502":
+          $ref: "#/components/responses/ModelInvocationFailure"
+        "504":
+          $ref: "#/components/responses/ModelInvocationFailure"
+
+    get:
+      operationId: listConversations
+      summary: List a product's conversations
+      description: |
+        Lists the conversations NevaBridge holds for one product, newest activity
+        first. Pass `reporterId` to narrow the list to a single reporter, which is
+        how a tenant backend renders "my reports" for the signed-in user.
+
+        Summaries carry no messages. Read one conversation to get its transcript
+        and reports.
+      tags: [Conversations]
+      parameters:
+        - $ref: "#/components/parameters/ProductId"
+        - name: reporterId
+          in: query
+          required: false
+          description: |
+            Return only conversations whose `reporterId` matches this value
+            exactly. It is the same value the tenant sent as `X-Actor-Id` when
+            starting the conversation. A value that matches nothing yields an
+            empty list rather than an error, and filtering is not an
+            authorization check: any reporter's conversations are reachable
+            without it.
+          schema:
+            type: string
+          example: user-4821
+      responses:
+        "200":
+          description: The product's conversations, filtered when `reporterId` was given.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ConversationSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/conversations/{conversationId}:
+    get:
+      operationId: getConversation
+      summary: Read a conversation
+      description: |
+        Returns one conversation with its full message history and its current
+        reports. Use it to render a transcript, and to poll for a report that a
+        turn or the abandonment fallback has since finalized.
+      tags: [Conversations]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+      responses:
+        "200":
+          description: The conversation, its messages, and its reports.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationDetail"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /v1/conversations/{conversationId}/messages:
+    post:
+      operationId: appendMessage
+      summary: Append a turn
+      description: |
+        Posts the reporter's next message and returns the assistant's reply along
+        with the conversation's complete report array. The array is never a
+        delta, so a live UI can redraw from this response without a follow-up
+        read.
+
+        The reporter's identity was fixed when the conversation started, so
+        `X-Actor-Id` is neither required nor read here.
+      tags: [Conversations]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppendMessageRequest"
+            examples:
+              minimal:
+                summary: The reporter's next message
+                value:
+                  content: It happens on every attempt, in Chrome and Safari.
+      responses:
+        "200":
+          description: The turn completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversationTurn"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "402":
+          $ref: "#/components/responses/QuotaExceeded"
+        "409":
+          description: The model rejected the turn, or report submission currently owns the report.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ModelInvocationError"
+                  - $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/ModelInvocationFailure"
+        "500":
+          $ref: "#/components/responses/InternalServerFailure"
+        "502":
+          $ref: "#/components/responses/ModelInvocationFailure"
+        "504":
+          $ref: "#/components/responses/ModelInvocationFailure"
+
+  /v1/conversations/{conversationId}/reports/{reportId}/submit:
+    post:
+      operationId: submitReport
+      summary: Submit a report
+      description: |
+        Finalizes one report and delivers it to the product's active connectors.
+        Call it when the reporter says they are done.
+
+        **Do not build an inactivity timer.** NevaBridge already finalizes an
+        abandoned conversation server-side: the window arms when the conversation
+        starts, resets on every turn, and elapses 60 minutes after the last one.
+        A sweep runs every 10 minutes, so an abandoned conversation is normally
+        finalized 60 to 70 minutes after its final turn, through the same
+        delivery path as an explicit submit. Anything that finalizes the report
+        disarms the window: this operation, a turn in which the assistant judged
+        the report complete and submitted it, closing the conversation, or
+        archiving it. Reproducing that timer client-side causes duplicate and
+        racing submissions.
+
+        Submitting a report that has already reached a terminal state is
+        idempotent: it returns the report as it stands and does not deliver it
+        twice. If another caller still owns finalization or delivery recovery,
+        this operation returns 409 Conflict. Retry after that work has had time
+        to finish or its recovery lease has expired.
+      tags: [Reports]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+        - name: reportId
+          in: path
+          required: true
+          description: The report to finalize, from the conversation's `reports` array.
+          schema:
+            $ref: "#/components/schemas/ReportId"
+      responses:
+        "200":
+          description: |
+            The report is finalized. When the product has active connectors, the
+            per-connector delivery outcome comes back with it; a connector
+            failure is reported here rather than failing the submission.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmitReportResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/SubmissionConflict"
+        "429":
+          $ref: "#/components/responses/ModelInvocationFailure"
+        "500":
+          $ref: "#/components/responses/InternalServerFailure"
+        "502":
+          $ref: "#/components/responses/ModelInvocationFailure"
+        "504":
+          $ref: "#/components/responses/ModelInvocationFailure"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        A NevaBridge API key for the tenant, sent as `Authorization: Bearer <key>`.
+        The key is an opaque secret, not a JWT, and is not exchanged for a
+        short-lived token. It identifies the tenant; every request is scoped to
+        that tenant's data.
+
+  parameters:
+    ProductId:
+      name: productId
+      in: path
+      required: true
+      description: The NevaBridge product the conversation belongs to.
+      schema:
+        $ref: "#/components/schemas/ProductId"
+      example: product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111
+
+    ConversationIdPath:
+      name: conversationId
+      in: path
+      required: true
+      description: The conversation to act on.
+      schema:
+        $ref: "#/components/schemas/ConversationId"
+      example: conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c
+
+    ActorId:
+      name: X-Actor-Id
+      in: header
+      required: true
+      description: |
+        The reporter's identity in the tenant's own vocabulary, stored verbatim as
+        the conversation's `reporterId`. Use a stable value so later calls can
+        filter a reporter's conversations. Correlation only: it carries no
+        authorization meaning.
+      schema:
+        type: string
+        minLength: 1
+      example: user-4821
+
+    ActorName:
+      name: X-Actor-Name
+      in: header
+      required: false
+      description: |
+        A human-readable label for the reporter, shown to NevaBridge staff in
+        triage. Display only. Percent-encode it if it may contain non-ASCII
+        characters.
+      schema:
+        type: string
+      example: dana%40example.com
+
+    ActorRoles:
+      name: X-Actor-Roles
+      in: header
+      required: false
+      description: |
+        Audience grants established for the lifetime of this conversation. Values
+        are case-sensitive. Send every applicable role because roles do not imply
+        one another. Unknown values are ignored; omission produces the anonymous
+        retrieval baseline. This header is accepted only when starting a
+        conversation.
+      style: simple
+      explode: false
+      schema:
+        type: array
+        items:
+          $ref: "#/components/schemas/ActorRole"
+      example: [anonymous, customer]
+
+  responses:
+    BadRequest:
+      description: |
+        The request body or path failed validation, or a resource it names does
+        not exist within the caller's tenant. NevaBridge answers a missing
+        resource on an existing endpoint with 400, not 404.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    Unauthorized:
+      description: The `Authorization` header is missing, malformed, or names a key NevaBridge does not accept.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    Forbidden:
+      description: The key is valid but its tenant may not reach the requested resource.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    QuotaExceeded:
+      description: The tenant has no credit budget or has exhausted it.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    ModelInvocationFailure:
+      description: |
+        A model invocation failed. The status and `category` identify the
+        operational response: 429 is throttled; 502 is transient-unavailable,
+        output-unparseable, or unknown; 504 is timed-out; 409 is access-denied
+        or model-retired; and 500 is request-rejected.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ModelInvocationError"
+
+    SubmissionConflict:
+      description: |
+        Either another caller is finalizing or recovering delivery for this
+        report, or the selected model is unavailable for a permanent reason.
+        A generic Conflict body means the submission is in progress and can be
+        retried. A ModelInvocationError identifies access-denied or
+        model-retired finalizer failures through its `category`.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/Error"
+              - $ref: "#/components/schemas/ModelInvocationError"
+
+    InternalServerError:
+      description: An unexpected server, persistence, or configuration failure.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    InternalServerFailure:
+      description: |
+        Either an unexpected server failure, or a model request rejected by the
+        provider before invocation. Model failures include a machine-readable
+        `category`; ordinary server failures use the generic error envelope.
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/Error"
+              - $ref: "#/components/schemas/ModelInvocationError"
+
+  schemas:
+    ActorRole:
+      type: string
+      enum: [anonymous, customer, tenant]
+      description: An independent knowledge audience grant.
+
+    ProductId:
+      type: string
+      description: A NevaBridge product id.
+      pattern: "^product-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+    ConversationId:
+      type: string
+      description: A NevaBridge conversation id.
+      pattern: "^conversation-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+    ReportId:
+      type: string
+      description: A NevaBridge report id.
+      pattern: "^report-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+    WriterModelKey:
+      type: string
+      description: A writer model enabled for the product and tenant.
+      enum:
+        - amazon-nova-lite
+        - mistral-large-3
+        - ministral-3-8b
+        - glm-5
+        - minimax-m2-5
+        - amazon-nova-pro
+        - claude-sonnet-4-6
+        - claude-sonnet-5
+        - amazon-nova-2-lite
+
+    ApplicationContext:
+      type: object
+      description: |
+        Opaque context from the reporting application, in the tenant's own
+        vocabulary. NevaBridge stores it, shows it in triage, and renders it into
+        the delivered issue. It never interprets keys or values, and it is
+        independent of the `X-Actor-*` headers.
+      propertyNames:
+        maxLength: 128
+      additionalProperties:
+        type: string
+        maxLength: 1024
+      maxProperties: 50
+
+    UserMessage:
+      type: object
+      description: One message from the reporter.
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 32768
+          description: What the reporter wrote, verbatim.
+        writerModelKey:
+          anyOf:
+            - $ref: "#/components/schemas/WriterModelKey"
+            - type: "null"
+      required: [content]
+      additionalProperties: false
+
+    ReporterRole:
+      type: object
+      description: |
+        Who is reporting, so the interviewer can adapt its tone and how deeply it
+        probes. Free-form for now.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 128
+        description:
+          type: string
+          minLength: 1
+          maxLength: 4096
+      required: [name, description]
+      additionalProperties: false
+
+    StartConversationRequest:
+      type: object
+      properties:
+        userMessage:
+          $ref: "#/components/schemas/UserMessage"
+        templateId:
+          type: [string, "null"]
+          minLength: 1
+          maxLength: 128
+          description: |
+            The report template to use. When supplied together with `category`,
+            the two must agree. When omitted, NevaBridge resolves the
+            category's product default template and then that category's
+            system starter template.
+        category:
+          oneOf:
+            - $ref: "#/components/schemas/ConversationCategory"
+            - type: "null"
+        applicationContext:
+          oneOf:
+            - $ref: "#/components/schemas/ApplicationContext"
+            - type: "null"
+        reporterRole:
+          oneOf:
+            - $ref: "#/components/schemas/ReporterRole"
+            - type: "null"
+      required: [userMessage]
+      additionalProperties: false
+
+    MessageRole:
+      type: string
+      enum: [user, assistant]
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        conversationId:
+          $ref: "#/components/schemas/ConversationId"
+        role:
+          $ref: "#/components/schemas/MessageRole"
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, conversationId, role, content, createdAt]
+      additionalProperties: false
+
+    ReportStatus:
+      type: string
+      description: |
+        Where the report stands. `reporting_in_progress` means the reporter is
+        still working on it; every other value is a finalized report moving
+        through the tenant's own triage.
+      enum:
+        - reporting_in_progress
+        - submitted
+        - assigned
+        - engineering_in_progress
+        - pending_release
+        - closed
+
+    IntakeCategory:
+      type: string
+      description: What kind of artifact the conversation is producing. Absent means `bug_report`.
+      enum: [bug_report, feature_request, support_request, feedback]
+
+    ConversationCategory:
+      type: string
+      description: |
+        The conversation category to start. When omitted and no `templateId`
+        is supplied, the conversation starts as `support_request`. With only a
+        `templateId`, the category derives from that template. A category that
+        contradicts the supplied template is rejected with HTTP 400.
+      enum: [bug_report, feature_request, support_request]
+
+    Report:
+      type: object
+      description: |
+        The structured artifact the interviewer builds from the conversation.
+        `structured` holds the template's fields; its keys depend on the template
+        the product uses, so treat it as an open map.
+      properties:
+        id:
+          $ref: "#/components/schemas/ReportId"
+        conversationId:
+          $ref: "#/components/schemas/ConversationId"
+        templateId:
+          type: string
+        templateVersion:
+          type: string
+        category:
+          $ref: "#/components/schemas/IntakeCategory"
+        displayTitle:
+          type: string
+          description: A short label for the report; absent until the interviewer sets one.
+        status:
+          $ref: "#/components/schemas/ReportStatus"
+        statusReason:
+          type: string
+          description: Why a report was closed, when the lifecycle records one.
+          enum:
+            - fix_published
+            - duplicate
+            - wont_fix
+            - works_as_designed
+            - couldnt_reproduce
+            - rejected
+        structured:
+          type: object
+          additionalProperties:
+            type: string
+        applicationContext:
+          $ref: "#/components/schemas/ApplicationContext"
+        submissionOrigin:
+          type: string
+          description: |
+            How the report came to be submitted. Absent means a manual submit.
+            `auto_abandoned` marks a report the server finalized after its
+            inactivity window elapsed.
+          enum: [manual, auto_abandoned]
+        writerModel:
+          $ref: "#/components/schemas/WriterModelKey"
+        deliveries:
+          type: array
+          description: Connector delivery rows for this report; absent until a delivery exists.
+          items:
+            $ref: "#/components/schemas/ReportDelivery"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - conversationId
+        - templateId
+        - templateVersion
+        - status
+        - structured
+        - createdAt
+        - updatedAt
+      additionalProperties: false
+
+    ReportDelivery:
+      type: object
+      description: The state of one connector delivery for a report.
+      properties:
+        connectorType:
+          $ref: "#/components/schemas/ConnectorType"
+        status:
+          $ref: "#/components/schemas/DeliveryStatus"
+        issueUrl:
+          type: string
+        externalId:
+          type: string
+        error:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required: [connectorType, status, createdAt, updatedAt]
+      additionalProperties: false
+
+    ConversationTurn:
+      type: object
+      description: |
+        One completed exchange. `reports` is always the conversation's complete
+        report array, not a delta, so a live UI can redraw from it without a
+        second request.
+      properties:
+        userMessage:
+          $ref: "#/components/schemas/Message"
+        assistantMessage:
+          $ref: "#/components/schemas/Message"
+        reports:
+          type: array
+          items:
+            $ref: "#/components/schemas/Report"
+        displayTitle:
+          type: string
+          description: Present when this turn set or refreshed the conversation's label.
+        connectors:
+          type: object
+          description: |
+            Present only when this turn finalized a report and delivered it,
+            because the assistant judged the report complete. Same shape as the
+            submit response's `connectors`.
+          propertyNames:
+            $ref: "#/components/schemas/ConnectorType"
+          additionalProperties:
+            $ref: "#/components/schemas/ConnectorDeliveryResult"
+      required: [userMessage, assistantMessage, reports]
+      additionalProperties: false
+
+    AppendMessageRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 32768
+          description: The reporter's next message, verbatim.
+        writerModelKey:
+          anyOf:
+            - $ref: "#/components/schemas/WriterModelKey"
+            - type: "null"
+      required: [content]
+      additionalProperties: false
+
+    ConversationStatus:
+      type: string
+      description: Derived from the statuses of the conversation's reports.
+      enum: [in_progress, closed]
+
+    DeliveryStatus:
+      type: string
+      enum: [pending, delivered, failed]
+
+    ConnectorType:
+      type: string
+      enum: [github, jira, linear, slack]
+
+    ConnectorDeliveryResult:
+      type: object
+      description: |
+        The outcome of delivering a report to one connector at submit time.
+      oneOf:
+        - type: object
+          properties:
+            status:
+              type: string
+              const: success
+            ticket:
+              type: string
+              description: The identifier or URL of the issue the connector created.
+          required: [status, ticket]
+          additionalProperties: false
+        - type: object
+          properties:
+            status:
+              type: string
+              const: failed
+            error:
+              type: string
+          required: [status, error]
+          additionalProperties: false
+
+    ConversationSummary:
+      type: object
+      description: |
+        One row in a product's conversation list. Carries no messages.
+      properties:
+        id:
+          $ref: "#/components/schemas/ConversationId"
+        tenantId:
+          type: string
+          description: The tenant selected by the API key.
+        productId:
+          $ref: "#/components/schemas/ProductId"
+        reporterId:
+          type: string
+          description: The value the tenant sent as `X-Actor-Id` when starting the conversation.
+        reporterDisplayName:
+          type: string
+          description: The reporter's display label, when one was given.
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        displayTitle:
+          type: string
+          description: A short label for the conversation; absent until the interviewer sets one.
+        creditsConsumed:
+          type: integer
+          minimum: 0
+          description: Credits charged across completed turns.
+        messageCount:
+          type: integer
+          minimum: 0
+          description: Total user and assistant messages in the conversation.
+        archivedAt:
+          type: string
+          format: date-time
+          description: Present once the conversation has been archived.
+        status:
+          $ref: "#/components/schemas/ConversationStatus"
+        bugReportStatus:
+          $ref: "#/components/schemas/ReportStatus"
+        reportId:
+          $ref: "#/components/schemas/ReportId"
+        deliveries:
+          type: array
+          description: Delivery state for the primary report, when any exists.
+          items:
+            $ref: "#/components/schemas/ReportDelivery"
+        category:
+          $ref: "#/components/schemas/IntakeCategory"
+      required:
+        [id, tenantId, productId, reporterId, createdAt, updatedAt, status]
+      additionalProperties: false
+
+    ConversationDetail:
+      type: object
+      description: |
+        One conversation with everything needed to render it: the full transcript
+        and the current state of its reports.
+      properties:
+        id:
+          $ref: "#/components/schemas/ConversationId"
+        tenantId:
+          type: string
+          description: The tenant selected by the API key.
+        productId:
+          $ref: "#/components/schemas/ProductId"
+        reporterId:
+          type: string
+        reporterDisplayName:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        displayTitle:
+          type: string
+        archivedAt:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/ConversationStatus"
+        creditsConsumed:
+          type: integer
+          minimum: 0
+          description: Credits charged across completed turns.
+        applicationContext:
+          $ref: "#/components/schemas/ApplicationContext"
+        reports:
+          type: array
+          items:
+            $ref: "#/components/schemas/Report"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+      required:
+        [
+          id,
+          tenantId,
+          productId,
+          reporterId,
+          createdAt,
+          updatedAt,
+          status,
+          reports,
+          messages,
+        ]
+      additionalProperties: false
+
+    SubmitReportResult:
+      type: object
+      properties:
+        report:
+          $ref: "#/components/schemas/Report"
+        connectors:
+          type: object
+          description: |
+            Delivery outcome per connector, keyed by connector type. Present only
+            when the product has active connectors.
+          propertyNames:
+            $ref: "#/components/schemas/ConnectorType"
+          additionalProperties:
+            $ref: "#/components/schemas/ConnectorDeliveryResult"
+      required: [report]
+      additionalProperties: false
+
+    Error:
+      type: object
+      description: The error shape every failed request returns.
+      properties:
+        error:
+          type: string
+          description: A short error name, stable enough to branch on.
+        message:
+          type: string
+          description: A human-readable explanation. Do not parse it.
+      required: [error, message]
+      additionalProperties: false
+
+    ModelInvocationError:
+      type: object
+      description: A model failure with a machine-readable category for retry decisions.
+      properties:
+        error:
+          type: string
+          const: ModelInvocationFailed
+        message:
+          type: string
+          description: A client-safe explanation naming the failing model role.
+        category:
+          type: string
+          enum:
+            - throttled
+            - transient-unavailable
+            - timed-out
+            - access-denied
+            - model-retired
+            - request-rejected
+            - output-unparseable
+            - unknown
+      required: [error, message, category]
+      additionalProperties: false

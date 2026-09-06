@@ -1,0 +1,65 @@
+{
+  "name": "@nevabridge/sdk",
+  "version": "0.0.1",
+  "nevabridgeContractVersion": "1.0.0",
+  "description": "Official TypeScript client for the NevaBridge Tenant Integration API",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/types/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/types/commonjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    }
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NevaBridge/clients.git",
+    "directory": "sdk/typescript"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "bun run clean && bun run build:types && bun run build:esm && bun run build:cjs",
+    "build:types": "bash scripts/build-declarations.sh",
+    "build:esm": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=esm --outfile=dist/esm/index.js --minify",
+    "build:cjs": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/cjs/index.cjs --minify",
+    "build:verify": "node scripts/verify-built-package.mjs",
+    "typecheck": "tsc --noEmit",
+    "typecheck:examples": "tsc -p tsconfig.examples.json --noEmit",
+    "typecheck:consumer": "tsc -p tests/consumer/tsconfig.json",
+    "typecheck:consumer:commonjs": "bash scripts/verify-commonjs-consumer.sh",
+    "test": "bun test",
+    "format:check": "prettier --check src/nevabridge-client.ts src/index.ts tests examples scripts README.md package.json tsconfig.json tsconfig.examples.json",
+    "generate": "../generation/generate-typescript.sh",
+    "generate:check": "bun run generate && bash scripts/check-generated-clean.sh",
+    "artifact:scan": "bash scripts/scan-package-artifacts.sh",
+    "pack:check": "bun pm pack --dry-run --ignore-scripts",
+    "check": "bun run generate:check && bun run format:check && bun run typecheck && bun run typecheck:examples && bun run test && bun run build && bun run build:verify && bun run typecheck:consumer && bun run typecheck:consumer:commonjs && bun run artifact:scan && bun run pack:check"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.11",
+    "esbuild": "^0.27.3",
+    "prettier": "^3.4.2",
+    "typescript": "^7.0.2"
+  }
+}

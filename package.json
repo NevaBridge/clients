@@ -1,0 +1,21 @@
+{
+  "name": "nevabridge-clients",
+  "private": true,
+  "packageManager": "bun@1.3.11",
+  "workspaces": [
+    "sdk/typescript"
+  ],
+  "scripts": {
+    "contract:verify": "bun scripts/verify-contract-pin.ts",
+    "sdk:generate": "sdk/generation/generate-typescript.sh",
+    "sdk:check": "bun run --filter @nevabridge/sdk check",
+    "test": "bun test ./tests",
+    "format:check": "prettier --check scripts tests package.json .prettierrc.json contracts/pin.json",
+    "check": "bun run contract:verify && bun run format:check && bun run test && bun run sdk:check"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.11",
+    "prettier": "^3.4.2",
+    "typescript": "^7.0.2"
+  }
+}

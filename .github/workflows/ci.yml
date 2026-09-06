@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Client quality gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+      # Pinned explicitly rather than relying on the runner image shipping a JRE. The
+      # generation drift check silently becomes a no-op if java disappears, so the one
+      # environment that always has to catch contract drift must not inherit it.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: bun install --frozen-lockfile
+      - run: bun run check
