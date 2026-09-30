@@ -51,8 +51,8 @@ java -jar "${GENERATOR_JAR}" generate \
 
 bun "${REPOSITORY_ROOT}/sdk/generation/postprocess-typescript.ts" "${STAGED_GENERATED_PATH}"
 
-# OpenAPI Generator emits trailing whitespace and multiple final newlines. Normalize
-# those mechanical artifacts so generated commits pass the repository whitespace gate.
+# OpenAPI Generator emits trailing whitespace and multiple final newlines. Remove
+# them so generated commits pass the repository whitespace gate.
 find "${STAGED_GENERATED_PATH}" -type f -name '*.ts' -exec \
   perl -0pi -e 's/[ \t]+\n/\n/g; s/\n+\z/\n/' {} +
 

@@ -16,9 +16,9 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.11
-      # Pinned explicitly rather than relying on the runner image shipping a JRE. The
-      # generation drift check silently becomes a no-op if java disappears, so the one
-      # environment that always has to catch contract drift must not inherit it.
+      # Pin Java explicitly instead of relying on the runner image to ship a JRE. The
+      # generation drift check silently becomes a no-op if java disappears, and this
+      # is the one environment that must always catch contract drift.
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

@@ -3,3 +3,10 @@ node_modules/
 
 # Pinned third-party tooling fetched and checksum-verified on demand, never committed.
 .tools/
+
+# Local review ledgers, written per round by the DCL reviewer. Evidence, not source.
+.reviews/
+
+/.idea
+/.agents
+/docs/research/

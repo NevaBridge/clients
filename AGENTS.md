@@ -1,4 +1,4 @@
-# NevaBridge clients — Agent instructions
+# Agent instructions for NevaBridge clients
 
 This repository holds the official client libraries for the NevaBridge Tenant Integration API.
 It is public. Everything committed here is published, including commit messages and author
@@ -6,29 +6,31 @@ identities.
 
 ## Boundaries
 
-- **The contract is not owned here.** `contracts/nevabridge-v1.yaml` is vendored from the
-  NevaBridge service repository and pinned in `contracts/pin.json`. Never edit it by hand; see
-  [`contracts/README.md`](contracts/README.md) for the refresh procedure.
-- **Generated code is never edited by hand.** `sdk/typescript/src/generated/` is replaced
-  wholesale on every generation run. Fix generation configuration or the post-generation step
-  instead.
-- **No dependency on NevaBridge-internal packages.** The published packages have no runtime
+- **The contract is not owned here.** `contracts/nevabridge-v1.yaml` is a vendored copy from the
+  NevaBridge service repository, pinned in `contracts/pin.json`. Never edit it by hand. See
+  [`contracts/README.md`](contracts/README.md) for how to refresh it.
+- **Never edit generated code by hand.** Every generation run replaces
+  `sdk/typescript/src/generated/` wholesale. Fix the generation configuration or the step that
+  runs after generation instead.
+- **Never depend on NevaBridge-internal packages.** The published packages have no runtime
   dependencies and must never import internal service types. The artifact scan enforces this.
-- **Nothing internal, private, or credential-bearing may be committed.** No internal hostnames,
-  no service repository paths in published files, no tenant data, no keys.
+- **Never commit anything internal, private, or credential-bearing.** That means no internal
+  hostnames, no service repository paths in published files, no tenant data, and no keys.
+- **Never publish the owner's internal context.** This covers customer, prospect and partner names,
+  onboarding and adoption plans, roadmap order, commercial reasoning, and anything else the owner
+  shared with an agent as working context and not for publication. Keep it out of files, commit
+  messages, branch names, tags and pull request text. When a document needs that context, state it
+  in general terms, such as "the first .NET consumer" instead of a name. If you cannot tell whether
+  something is meant for publication, leave it out and ask the owner.
 
-## Identity
-
-Commits use the author and committer identity `Code Monkey <codemonkey@nevabridge.com>`, set as
-repo-local `user.name` and `user.email`. Personal identities must not appear in this history.
 
 ## Prerequisites
 
 - **Bun** is the package manager, workspace runner and test runner.
-- **A JRE** is required. OpenAPI Generator is a Java program, and the generation drift check runs
-  it on every gate. This is a hard prerequisite of this repository, unlike the service repository.
-  On first use the pinned generator JAR is downloaded to `.tools/` and its SHA-256 verified. Set
-  `OPENAPI_GENERATOR_JAR` to reuse an existing verified copy.
+- **A JRE** is required. OpenAPI Generator is a Java program, and every gate run uses it for the
+  generation drift check. The service repository does not need Java, but this one always does. On
+  first use, the scripts download the pinned generator JAR to `.tools/` and verify its SHA-256. Set
+  `OPENAPI_GENERATOR_JAR` to reuse a verified copy you already have.
 
 ## Quality gate
 
@@ -36,19 +38,21 @@ repo-local `user.name` and `user.email`. Personal identities must not appear in 
 bun run check
 ```
 
-That runs, in order:
+It runs these steps in order:
 
 | Step | Proves |
 | --- | --- |
-| `contract:verify` | The vendored contract still matches the upstream commit recorded in `pin.json`. |
-| `format:check` | Handwritten root files are formatted. |
-| `test` | The repository-level checks behave. |
-| `sdk:check` | The TypeScript package's own full gate: regeneration drift, formatting, four typechecks, behavioral tests, dual-format build, built-package load, tarball scan, and pack dry-run. |
+| `contract:verify` | The vendored contract has not changed since it was pinned. See `contracts/README.md` for what this does not prove. |
+| `format:check` | The handwritten root files are formatted. |
+| `test` | The repository-level checks work. |
+| `sdk:check` | The TypeScript package passes its own full gate. That covers regeneration drift, formatting, four type checks, behavioral tests, the build of both module formats, loading the built package, the tarball scan, and a pack dry run. |
 
-The first and fourth steps are deliberately separate. Generation drift only proves the committed
-client matches whatever is vendored; it says nothing about whether what is vendored is authentic.
+The first and fourth steps are separate on purpose. The drift check only proves that the committed
+client matches whatever is vendored. It cannot tell whether someone changed the vendored contract
+after pinning it. Neither step proves that the pin names the revision it claims. The service
+repository owns the history, so it settles that. See `contracts/README.md`.
 
-CI repeats the same gate on every push and pull request, with an explicitly pinned JRE.
+CI runs the same gate on every push and pull request, with an explicitly pinned JRE.
 
 ## Layout
 
@@ -60,13 +64,14 @@ scripts/            repository-level checks
 tests/              tests for those checks
 ```
 
-`sdk/dotnet/` is reserved for the planned .NET client. It will not be a Bun workspace member; do
+`sdk/dotnet/` is reserved for the planned .NET client. It will not be a Bun workspace member, so do
 not add it to `workspaces` in the root `package.json`.
 
 ## Conventions
 
-- TypeScript: explicit parameter and return types, no `any`, no non-null assertions, no unchecked
-  casts. Comments explain why, not what.
-- Tests are structured Given / When / Then and test behavior through a public interface.
-- Commit messages: imperative mood, capitalized subject, no Conventional Commits prefix.
+- TypeScript code declares explicit parameter and return types and uses no `any`, no non-null
+  assertions and no unchecked casts. Comments explain why, not what.
+- Tests follow Given / When / Then and test behavior through a public interface.
+- Commit messages use the imperative mood, a capitalized subject, and no Conventional Commits
+  prefix.
 - Never add test-only branches, flags or escape hatches to shipped code.

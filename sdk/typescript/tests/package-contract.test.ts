@@ -82,18 +82,20 @@ printf '${checksum}  %s\n' "$1"
     const readme = await Bun.file(new URL("README.md", packageRoot)).text();
 
     expect(readme).toContain(
-      "Call `submitReport` when the user explicitly finishes.",
+      "Call `submitReport` when the user says they are finished.",
     );
-    expect(readme).toContain("Do not implement an inactivity timer");
+    expect(readme).toContain("Do not build an inactivity timer");
     expect(readme).toContain("60 minutes without a turn");
-    expect(readme).toContain("60-70 minutes after the last turn");
-    expect(readme).toContain("Every successful turn resets");
-    expect(readme).toContain("Manual submit disarms");
-    expect(readme).toContain("normal finalization and connector delivery");
+    expect(readme).toContain("60 to 70 minutes after the last turn");
+    expect(readme).toContain(
+      "Every successful turn restarts the 60-minute window",
+    );
+    expect(readme).toContain("A manual submit cancels it");
+    expect(readme).toContain("same finalization and connector delivery");
     expect(readme).toContain('submissionOrigin: "auto_abandoned"');
     expect(readme).toContain("first in-progress report");
     expect(readme).toContain(
-      "Staff-authenticated conversations do not receive",
+      "Conversations authenticated as staff are never finalized automatically",
     );
   });
 

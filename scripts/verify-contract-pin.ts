@@ -1,9 +1,18 @@
 #!/usr/bin/env bun
 /**
- * Proves that the vendored OpenAPI contract is byte-identical to the upstream
- * revision it claims to come from. The generator's own drift check only proves
- * that the committed client matches whatever is vendored here, so without this
- * a hand-edited contract would regenerate cleanly and look correct.
+ * Proves the vendored OpenAPI contract has not changed since it was pinned. The
+ * generator's own drift check only proves the committed client matches whatever
+ * is vendored here, so without this a hand-edited contract would regenerate
+ * cleanly and look correct.
+ *
+ * This script cannot prove that the recorded commit is the revision those bytes
+ * came from. The checksum and the commit are recorded side by side, so a refresh
+ * that updates both consistently passes whatever it claims. Only the service
+ * repository holds the history to settle that, and it does. Its
+ * `contract:consumers` check hashes the bytes at each consumer's recorded commit
+ * and fails when they disagree with what the consumer recorded. That check and
+ * the review of the refresh commit establish authenticity. This script
+ * establishes tamper detection.
  */
 import {createHash} from "node:crypto";
 import {readFileSync} from "node:fs";
@@ -75,5 +84,6 @@ if (actualSha256 !== pin.sha256) {
 }
 
 console.log(
-  `contract:verify: contracts/nevabridge-v1.yaml matches ${pin.commit.slice(0, 8)} upstream.`,
+  "contract:verify: contracts/nevabridge-v1.yaml is unchanged since it was pinned at " +
+    `${pin.commit.slice(0, 8)}.`,
 );

@@ -1,12 +1,16 @@
 # NevaBridge TypeScript SDK
 
-`@nevabridge/sdk` is the official Node.js client for the supported NevaBridge Tenant Integration API. It targets Node.js 22 or newer and provides ESM and CommonJS entry points.
+`@nevabridge/sdk` is the official Node.js client for the supported NevaBridge Tenant Integration API. It requires Node.js 22 or newer and has ESM and CommonJS entry points.
 
 ## Install
 
 ```bash
 bun add @nevabridge/sdk
 ```
+
+## Get an API key
+
+Create an API key in your NevaBridge account under [Setup > API](https://app.nevabridge.com/setup?section=api). The key grants access to your whole tenant, so keep it on your server in a secret store or an environment variable. Never commit it.
 
 ## Create a client
 
@@ -18,11 +22,11 @@ const client = new NevaBridgeClient({
 });
 ```
 
-The token provider runs for every operation, so the application can return a refreshed credential without recreating the client. Use `baseUrl` to select a non-production endpoint. Never expose the API key to browser code.
+The token provider returns the API key. The client calls it before every operation, so your application can return a refreshed credential without creating a new client. Set `baseUrl` to use a non-production endpoint. Never expose the API key to browser code.
 
-Pass `actorName` as the raw human-readable display name. The SDK percent-encodes it for the `X-Actor-Name` header, including non-ASCII names.
+Pass the user's display name as `actorName`, unencoded. The SDK percent-encodes it for the `X-Actor-Name` header, which handles non-ASCII names.
 
-Pass every knowledge audience that applies through `actorRoles`. Roles are independent, so an authenticated customer who may also use public knowledge sends both `"anonymous"` and `"customer"`. The SDK sends the resulting `X-Actor-Roles` header only when starting the conversation.
+Pass every knowledge audience that applies in `actorRoles`. Each role is a separate grant, so an authenticated customer who may also use public knowledge sends both `"anonymous"` and `"customer"`. The SDK sends the `X-Actor-Roles` header only when it starts a conversation.
 
 ## Start and continue a conversation
 
@@ -44,13 +48,13 @@ await client.appendMessage({
 });
 ```
 
-Every method also accepts `signal: AbortSignal` for cancellation. Non-successful responses throw `NevaBridgeApiError`, which exposes `status`, `headers`, and safely parsed `detail`.
+Every method accepts `signal: AbortSignal` for cancellation. When the API returns an error status, the method throws `NevaBridgeApiError`. The error has `status`, `headers`, and `detail`. `detail` is the parsed body when the response declares JSON and the body parses. Otherwise it is the body text, or `null` when the body is empty.
 
 ## Submit behavior
 
-Call `submitReport` when the user explicitly finishes. Do not implement an inactivity timer or retry-based auto-submit. NevaBridge automatically finalizes an in-progress M2M conversation after 60 minutes without a turn, normally within 60-70 minutes after the last turn because the server sweep runs every 10 minutes.
+Call `submitReport` when the user says they are finished. Do not build an inactivity timer or an automatic submit that retries. NevaBridge finalizes an in-progress machine-to-machine conversation itself after 60 minutes without a turn. The server checks for these every 10 minutes, so finalization usually happens 60 to 70 minutes after the last turn.
 
-Every successful turn resets the server inactivity window. Manual submit disarms the window. Abandonment uses normal finalization and connector delivery. Auto-finalized reports expose `submissionOrigin: "auto_abandoned"` when read. The fallback currently targets the first in-progress report. Staff-authenticated conversations do not receive this fallback.
+Every successful turn restarts the 60-minute window. A manual submit cancels it. An abandoned conversation goes through the same finalization and connector delivery as a submitted one. When you read an automatically finalized report, it has `submissionOrigin: "auto_abandoned"`. The server currently finalizes only the first in-progress report this way. Conversations authenticated as staff are never finalized automatically.
 
 ```typescript
 for (const report of turn.reports) {
@@ -63,7 +67,7 @@ for (const report of turn.reports) {
 }
 ```
 
-The SDK exposes no inactivity setting, timer, or automatic submit function.
+The SDK has no inactivity setting, no timer, and no automatic submit function.
 
 ## Supported operations
 
@@ -73,4 +77,4 @@ The SDK exposes no inactivity setting, timer, or automatic submit function.
 - `appendMessage`
 - `submitReport`
 
-Only these operations are part of the supported public contract.
+The supported public contract includes only these operations.

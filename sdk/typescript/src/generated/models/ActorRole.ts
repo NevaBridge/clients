@@ -22,7 +22,7 @@ export const ActorRole = {
     Customer: 'customer',
     Tenant: 'tenant'
 } as const;
-export type ActorRole = typeof ActorRole[keyof typeof ActorRole];
+export type ActorRole = (typeof ActorRole)[keyof typeof ActorRole] | (string & {});
 
 
 export function instanceOfActorRole(value: any): boolean {

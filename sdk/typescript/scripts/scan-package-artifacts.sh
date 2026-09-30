@@ -29,16 +29,33 @@ for candidate in src examples README.md LICENSE; do
   fi
 done
 
-# grep, not ripgrep: ripgrep is not a documented prerequisite of this repo, and an
-# absent scanner inside an `if` condition would exit 0 and pass the gate on anything.
-# grep -r reads hidden files and ignores .gitignore, so no rg-style flags are needed.
+# Use grep, not ripgrep. This repo does not document ripgrep as a prerequisite, and
+# an absent scanner inside an `if` condition would exit 0 and pass the gate on
+# anything. grep -r reads hidden files and ignores .gitignore, so no rg-style flags
+# are needed.
+#
+# Use --files-with-matches, never --line-number. This scan exists to stop a
+# credential reaching a published artifact, so it must not copy the matched text
+# into a build log, where it would outlive any cleanup of the artifact itself. A
+# reader needs the file name and must not be handed the value.
 SCAN_STATUS=0
-SCAN_OUTPUT="$(grep --recursive --binary-files=text --ignore-case --line-number \
+SCAN_OUTPUT="$(grep --recursive --binary-files=text --ignore-case --files-with-matches \
   --extended-regexp "${FORBIDDEN_PATTERN}" "${SCAN_PATHS[@]}")" || SCAN_STATUS=$?
 
 if [[ "${SCAN_STATUS}" -eq 0 ]]; then
-  printf '%s\n' "${SCAN_OUTPUT}"
-  echo "Forbidden pattern found in the packaged artifacts." >&2
+  echo "Forbidden pattern found in the packaged artifacts. Matching files:" >&2
+  while IFS= read -r matching_path; do
+    # A path is content too, because a file can be named after the secret it holds.
+    # Withhold any path that matches instead of substituting inside it. The pattern
+    # contains both "/" and "|", so every sed delimiter is unsafe, and a broken
+    # expression would print the path unredacted.
+    if grep --quiet --ignore-case --extended-regexp "${FORBIDDEN_PATTERN}" <<< "${matching_path}"; then
+      echo "  [path withheld: the file name itself matches a forbidden pattern]" >&2
+    else
+      echo "  ${matching_path}" >&2
+    fi
+  done <<< "${SCAN_OUTPUT}"
+  echo "Matched content is deliberately not printed. Inspect these files locally." >&2
   exit 1
 fi
 

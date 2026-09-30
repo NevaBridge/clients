@@ -6,19 +6,34 @@ Official client libraries for the [NevaBridge](https://nevabridge.com) Tenant In
 | --- | --- | --- |
 | [`@nevabridge/sdk`](sdk/typescript) | TypeScript / Node.js 22+ | Pre-release |
 
-The API surface is five operations for running a NevaBridge reporting conversation from your own
-backend: start a conversation, list conversations, read one, append a turn, and submit the report.
-See [`sdk/typescript/README.md`](sdk/typescript/README.md) for usage.
+The API lets your backend run a NevaBridge reporting conversation. It can start a conversation,
+list conversations, read one, append a turn, and submit the report. See
+[`sdk/typescript/README.md`](sdk/typescript/README.md) for usage.
+
+## Get an API key
+
+Every request needs a NevaBridge API key. Create one in your NevaBridge account under
+[Setup > API](https://app.nevabridge.com/setup?section=api).
+
+The key grants access to your whole tenant. Keep it on your server, in a secret store or an
+environment variable, and never commit it or send it to browser code.
+
+Pass the key to the SDK through its token provider, as the
+[SDK README](sdk/typescript/README.md#create-a-client) shows. If you call the API with your own
+HTTP client, send the key as `Authorization: Bearer <key>` on every request. The production API is
+at `https://tenant.api.nevabridge.com`, and the sandbox is at
+`https://tenant.api.sandbox.nevabridge.com`.
 
 ## How these clients are built
 
-Wire models and the transport client are generated from the published OpenAPI contract with a
-pinned, checksum-verified OpenAPI Generator release. Generated code is committed and replaced
-wholesale on every run; it is never edited by hand. Each package wraps that generated client in a
-small handwritten facade, which is the supported public API.
+A pinned OpenAPI Generator release generates the wire models and the transport client from the
+published OpenAPI contract. The build verifies the generator's checksum before running it. The
+generated code is committed, and every run replaces it wholesale. Nobody edits it by hand. Each
+package wraps the generated client in a small handwritten facade, and that facade is the supported
+public API.
 
-The contract itself is vendored under [`contracts/`](contracts) and pinned to the upstream commit
-it came from, so any published client can be traced back to an exact contract revision.
+The contract is vendored under [`contracts/`](contracts) and pinned to the upstream commit it came
+from. Every published client therefore traces back to an exact contract revision.
 
 ## License
 
