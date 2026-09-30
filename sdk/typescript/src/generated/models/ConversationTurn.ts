@@ -2,7 +2,7 @@
 /* eslint-disable */
 /**
  * NevaBridge Tenant Integration API
- * This contract covers the operations a tenant\'s trusted backend may call to run a NevaBridge reporting conversation and finalize the report it produces.  **Supported surface.** Only the operations in this document are supported commitments. A NevaBridge API key is tenant-wide and the gateway does not restrict it to these paths, so other routes may answer a request; they are internal, may change without notice, and are not covered by any compatibility promise. Build against this document only.  **Trust boundary.** The caller is the tenant\'s backend, not a browser. The API key must never reach an end user\'s device. `X-Actor-Id` is a correlation value the tenant chooses and NevaBridge stores verbatim; it is not an authorization boundary, and NevaBridge does not check that a caller \"owns\" the actor it names. `X-Actor-Roles` is trusted audience context from that backend. Tenant isolation comes from the API key alone.
+ * This contract covers the operations a tenant\'s trusted backend may call to run a NevaBridge reporting conversation, attach files to it, and finalize the report it produces.  **Supported surface.** Only the operations in this document are supported commitments. A NevaBridge API key is tenant-wide and the gateway does not restrict it to these paths, so other routes may answer a request; they are internal, may change without notice, and are not covered by any compatibility promise. Build against this document only.  **Trust boundary.** The caller is the tenant\'s backend, not a browser. The API key must never reach an end user\'s device. `X-Actor-Id` is a correlation value the tenant chooses and NevaBridge stores verbatim; it is not an authorization boundary, and NevaBridge does not check that a caller \"owns\" the actor it names. `X-Actor-Roles` is trusted audience context from that backend. Tenant isolation comes from the API key alone.  **Feature entitlements.** Some behavior depends on features NevaBridge enables per tenant. A system-wide setting can switch a feature on or off for every tenant; otherwise the tenant\'s own entitlement decides. NevaBridge staff manage both, so ask NevaBridge to enable a feature. Each affected operation names its feature in its description and in `x-nevabridge-entitlements`:  - `chatAttachments`: every Attachments operation. Without it they answer 403   `Forbidden`, whose message names the feature. With it, a report delivered   to a tracker while its conversation holds uploaded files also carries an   attachment count and a link to the files in NevaBridge. Revoking the   entitlement keeps the files; granting it again makes them reachable again. - `knowledgebase`: `startConversation` and `appendMessage`. With it, and once   the tenant\'s knowledge base is ready, the assistant grounds its replies in   the tenant\'s documents that the conversation\'s `X-Actor-Roles` may read.   Without it, turns run the same way with no document retrieval and no   error, and `X-Actor-Roles` has no effect. - `genericIntake`: no operation here starts a Generic Intake conversation. A   tenant that uses Generic Intake in the NevaBridge app should know that   `listConversations` leaves those conversations out, and `getConversation`   and `appendMessage` refuse them with 400. The Attachments operations   accept them.  Every other behavior in this document is the same for all tenants.
  *
  * The version of the OpenAPI document: 1.0.0
  *
@@ -36,9 +36,10 @@ import {
 } from './ConnectorDeliveryResult.js';
 
 /**
- * One completed exchange. `reports` is always the conversation's complete
- * report array, not a delta, so a live UI can redraw from it without a
- * second request.
+ * One completed exchange. `reports` always holds every report of the
+ * conversation, not a delta, so a live UI can redraw from it without a
+ * second request. Reports in a turn omit `applicationContext` and
+ * `deliveries`; read the conversation for those.
  *
  * @export
  * @interface ConversationTurn

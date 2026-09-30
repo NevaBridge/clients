@@ -10,6 +10,7 @@ if (!generatedPath) {
 
 const openEnumTargets: readonly OpenEnumTarget[] = [
   {file: "models/ActorRole.ts", names: ["ActorRole"]},
+  {file: "models/AttachmentKind.ts", names: ["AttachmentKind"]},
   {file: "models/ConnectorType.ts", names: ["ConnectorType"]},
   {file: "models/ConversationCategory.ts", names: ["ConversationCategory"]},
   {file: "models/ConversationStatus.ts", names: ["ConversationStatus"]},

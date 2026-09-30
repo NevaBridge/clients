@@ -27,7 +27,7 @@ A deterministic step after generation widens the contract's enum aliases to acce
 The script then strips the trailing whitespace and extra final newlines that OpenAPI Generator emits, so generated commits pass the whitespace check.
 
 Make `NevaBridgeClient` the supported public runtime API.
-It wraps the generated client and adds a token callback that runs on every request, base URL selection, cancellation, structured errors, and the five operation names.
+It wraps the generated client and adds a token callback that runs on every request, base URL selection, cancellation, structured errors, and one named method per operation.
 The public wire types stay generated from OpenAPI. Relative imports in both generated and handwritten code use `.js` specifiers.
 esbuild bundles the runtime as ESM and as CommonJS, and the build emits matching `.d.ts` and `.d.cts` declaration files that resolve under NodeNext.
 Bun's bundler is not used for this, because Bun 1.3.11 and 1.3.14 produced broken bundles for the generated re-export graph.

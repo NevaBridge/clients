@@ -14,52 +14,52 @@
 
 import { mapValues } from '../runtime.js';
 /**
- * The body API Gateway sends when it gives up on a request.
+ *
  * @export
- * @interface EdgeError
+ * @interface AttachmentCommandRequest
  */
-export interface EdgeError {
+export interface AttachmentCommandRequest {
     /**
-     *
+     * The file to act on, as returned by `requestAttachmentUpload`.
      * @type {string}
-     * @memberof EdgeError
+     * @memberof AttachmentCommandRequest
      */
-    message: string;
+    attachmentId: string;
 }
 
 /**
- * Check if a given object implements the EdgeError interface.
+ * Check if a given object implements the AttachmentCommandRequest interface.
  */
-export function instanceOfEdgeError(value: object): value is EdgeError {
-    if (!('message' in value) || value['message'] === undefined) return false;
+export function instanceOfAttachmentCommandRequest(value: object): value is AttachmentCommandRequest {
+    if (!('attachmentId' in value) || value['attachmentId'] === undefined) return false;
     return true;
 }
 
-export function EdgeErrorFromJSON(json: any): EdgeError {
-    return EdgeErrorFromJSONTyped(json, false);
+export function AttachmentCommandRequestFromJSON(json: any): AttachmentCommandRequest {
+    return AttachmentCommandRequestFromJSONTyped(json, false);
 }
 
-export function EdgeErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): EdgeError {
+export function AttachmentCommandRequestFromJSONTyped(json: any, ignoreDiscriminator: boolean): AttachmentCommandRequest {
     if (json == null) {
         return json;
     }
     return {
 
-        'message': json['message'],
+        'attachmentId': json['attachmentId'],
     };
 }
 
-export function EdgeErrorToJSON(json: any): EdgeError {
-    return EdgeErrorToJSONTyped(json, false);
+export function AttachmentCommandRequestToJSON(json: any): AttachmentCommandRequest {
+    return AttachmentCommandRequestToJSONTyped(json, false);
 }
 
-export function EdgeErrorToJSONTyped(value?: EdgeError | null, ignoreDiscriminator: boolean = false): any {
+export function AttachmentCommandRequestToJSONTyped(value?: AttachmentCommandRequest | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
 
-        'message': value['message'],
+        'attachmentId': value['attachmentId'],
     };
 }

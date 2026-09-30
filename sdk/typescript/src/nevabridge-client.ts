@@ -1,10 +1,16 @@
+import {AttachmentsApi} from "./generated/apis/AttachmentsApi.js";
 import {ConversationsApi} from "./generated/apis/ConversationsApi.js";
 import {ReportsApi} from "./generated/apis/ReportsApi.js";
 import type {AppendMessageRequest} from "./generated/models/AppendMessageRequest.js";
 import type {ActorRole} from "./generated/models/ActorRole.js";
+import type {Attachment} from "./generated/models/Attachment.js";
+import type {AttachmentDownloadUrl} from "./generated/models/AttachmentDownloadUrl.js";
+import type {AttachmentList} from "./generated/models/AttachmentList.js";
 import type {ConversationDetail} from "./generated/models/ConversationDetail.js";
 import type {ConversationSummary} from "./generated/models/ConversationSummary.js";
 import type {ConversationTurn} from "./generated/models/ConversationTurn.js";
+import type {RequestAttachmentUploadRequest} from "./generated/models/RequestAttachmentUploadRequest.js";
+import type {RequestAttachmentUploadResponse} from "./generated/models/RequestAttachmentUploadResponse.js";
 import type {StartConversationRequest} from "./generated/models/StartConversationRequest.js";
 import type {SubmitReportResult} from "./generated/models/SubmitReportResult.js";
 import {Configuration, FetchError, ResponseError} from "./generated/runtime.js";
@@ -46,6 +52,24 @@ export interface SubmitReportOptions {
   readonly signal?: AbortSignal;
 }
 
+export interface ListAttachmentsOptions {
+  readonly conversationId: string;
+  readonly signal?: AbortSignal;
+}
+
+export interface RequestAttachmentUploadOptions {
+  readonly conversationId: string;
+  readonly actorId: string;
+  readonly request: RequestAttachmentUploadRequest;
+  readonly signal?: AbortSignal;
+}
+
+export interface AttachmentOptions {
+  readonly conversationId: string;
+  readonly attachmentId: string;
+  readonly signal?: AbortSignal;
+}
+
 export class NevaBridgeApiError extends Error {
   public constructor(
     public readonly status: number,
@@ -83,6 +107,7 @@ async function errorDetail(response: Response): Promise<unknown> {
 }
 
 export class NevaBridgeClient {
+  private readonly attachmentsApi: AttachmentsApi;
   private readonly conversationsApi: ConversationsApi;
   private readonly reportsApi: ReportsApi;
 
@@ -91,6 +116,7 @@ export class NevaBridgeClient {
       basePath: configuration.baseUrl?.replace(/\/+$/, ""),
       accessToken: configuration.tokenProvider,
     });
+    this.attachmentsApi = new AttachmentsApi(generatedConfiguration);
     this.conversationsApi = new ConversationsApi(generatedConfiguration);
     this.reportsApi = new ReportsApi(generatedConfiguration);
   }
@@ -166,6 +192,77 @@ export class NevaBridgeClient {
         {
           conversationId: options.conversationId,
           reportId: options.reportId,
+        },
+        {signal: options.signal},
+      ),
+    );
+  }
+
+  public async listAttachments(
+    options: ListAttachmentsOptions,
+  ): Promise<AttachmentList> {
+    return await this.request(() =>
+      this.attachmentsApi.listAttachments(
+        {conversationId: options.conversationId},
+        {signal: options.signal},
+      ),
+    );
+  }
+
+  /**
+   * Admits one file and returns a presigned URL. PUT exactly `sizeBytes` bytes to
+   * `uploadUrl` with the header `If-None-Match: *` before `expiresAt`, then call
+   * confirmAttachmentUpload. The SDK never sends the file itself.
+   */
+  public async requestAttachmentUpload(
+    options: RequestAttachmentUploadOptions,
+  ): Promise<RequestAttachmentUploadResponse> {
+    return await this.request(() =>
+      this.attachmentsApi.requestAttachmentUpload(
+        {
+          conversationId: options.conversationId,
+          xActorId: options.actorId,
+          requestAttachmentUploadRequest: options.request,
+        },
+        {signal: options.signal},
+      ),
+    );
+  }
+
+  public async confirmAttachmentUpload(
+    options: AttachmentOptions,
+  ): Promise<Attachment> {
+    return await this.request(() =>
+      this.attachmentsApi.confirmAttachmentUpload(
+        {
+          conversationId: options.conversationId,
+          attachmentCommandRequest: {attachmentId: options.attachmentId},
+        },
+        {signal: options.signal},
+      ),
+    );
+  }
+
+  public async requestAttachmentDownloadUrl(
+    options: AttachmentOptions,
+  ): Promise<AttachmentDownloadUrl> {
+    return await this.request(() =>
+      this.attachmentsApi.requestAttachmentDownloadUrl(
+        {
+          conversationId: options.conversationId,
+          attachmentCommandRequest: {attachmentId: options.attachmentId},
+        },
+        {signal: options.signal},
+      ),
+    );
+  }
+
+  public async deleteAttachment(options: AttachmentOptions): Promise<void> {
+    await this.request(() =>
+      this.attachmentsApi.deleteAttachment(
+        {
+          conversationId: options.conversationId,
+          attachmentCommandRequest: {attachmentId: options.attachmentId},
         },
         {signal: options.signal},
       ),

@@ -12,54 +12,42 @@
  * Do not edit the class manually.
  */
 
-import { mapValues } from '../runtime.js';
+
 /**
- * The body API Gateway sends when it gives up on a request.
+ * The broad file type, derived from the file name's extension.
  * @export
- * @interface EdgeError
  */
-export interface EdgeError {
-    /**
-     *
-     * @type {string}
-     * @memberof EdgeError
-     */
-    message: string;
-}
+export const AttachmentKind = {
+    Image: 'image',
+    Video: 'video',
+    Text: 'text'
+} as const;
+export type AttachmentKind = (typeof AttachmentKind)[keyof typeof AttachmentKind] | (string & {});
 
-/**
- * Check if a given object implements the EdgeError interface.
- */
-export function instanceOfEdgeError(value: object): value is EdgeError {
-    if (!('message' in value) || value['message'] === undefined) return false;
-    return true;
-}
 
-export function EdgeErrorFromJSON(json: any): EdgeError {
-    return EdgeErrorFromJSONTyped(json, false);
-}
-
-export function EdgeErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): EdgeError {
-    if (json == null) {
-        return json;
+export function instanceOfAttachmentKind(value: any): boolean {
+    for (const key in AttachmentKind) {
+        if (Object.prototype.hasOwnProperty.call(AttachmentKind, key)) {
+            if (AttachmentKind[key as keyof typeof AttachmentKind] === value) {
+                return true;
+            }
+        }
     }
-    return {
-
-        'message': json['message'],
-    };
+    return false;
 }
 
-export function EdgeErrorToJSON(json: any): EdgeError {
-    return EdgeErrorToJSONTyped(json, false);
+export function AttachmentKindFromJSON(json: any): AttachmentKind {
+    return AttachmentKindFromJSONTyped(json, false);
 }
 
-export function EdgeErrorToJSONTyped(value?: EdgeError | null, ignoreDiscriminator: boolean = false): any {
-    if (value == null) {
-        return value;
-    }
+export function AttachmentKindFromJSONTyped(json: any, ignoreDiscriminator: boolean): AttachmentKind {
+    return json as AttachmentKind;
+}
 
-    return {
+export function AttachmentKindToJSON(value?: AttachmentKind | null): any {
+    return value as any;
+}
 
-        'message': value['message'],
-    };
+export function AttachmentKindToJSONTyped(value: any, ignoreDiscriminator: boolean): AttachmentKind {
+    return value as AttachmentKind;
 }

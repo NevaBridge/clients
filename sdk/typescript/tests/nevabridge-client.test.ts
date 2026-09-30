@@ -312,6 +312,170 @@ describe("NevaBridgeClient", () => {
     }
   });
 
+  it("runs the five attachment operations with a fresh token for each", async () => {
+    interface CapturedRequest {
+      readonly authorization: string | null;
+      readonly actorId: string | null;
+      readonly body: string;
+      readonly method: string;
+      readonly path: string;
+    }
+    const attachmentId = "attachment-0f1e2d3c-4b5a-4968-8776-655443322110";
+    const attachment = {
+      id: attachmentId,
+      fileName: "console.log",
+      kind: "text",
+      sizeBytes: 48213,
+      uploadedBy: "api:user-4821",
+      uploadedAt: timestamp,
+    };
+    const requests: CapturedRequest[] = [];
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request): Promise<Response> {
+        const path = new URL(request.url).pathname;
+        requests.push({
+          authorization: request.headers.get("authorization"),
+          actorId: request.headers.get("x-actor-id"),
+          body: await request.clone().text(),
+          method: request.method,
+          path,
+        });
+        if (path.endsWith("/attachments")) {
+          return Response.json({attachments: [attachment]});
+        }
+        if (path.endsWith("/request-attachment-upload")) {
+          return Response.json({
+            attachmentId,
+            uploadUrl: "https://files.example/upload?signature=1",
+            expiresAt: timestamp,
+          });
+        }
+        if (path.endsWith("/confirm-attachment-upload")) {
+          return Response.json(attachment);
+        }
+        if (path.endsWith("/request-attachment-download-url")) {
+          return Response.json({
+            url: "https://files.example/download?signature=2",
+          });
+        }
+        return new Response(null, {status: 204});
+      },
+    });
+    let tokenNumber = 0;
+    const client = new NevaBridgeClient({
+      baseUrl: server.url.toString(),
+      tokenProvider: () => `token-${++tokenNumber}`,
+    });
+
+    try {
+      const listed = await client.listAttachments({
+        conversationId: "conversation-1",
+      });
+      const upload = await client.requestAttachmentUpload({
+        conversationId: "conversation-1",
+        actorId: "user-4821",
+        request: {fileName: "console.log", sizeBytes: 48213},
+      });
+      const confirmed = await client.confirmAttachmentUpload({
+        conversationId: "conversation-1",
+        attachmentId,
+      });
+      const download = await client.requestAttachmentDownloadUrl({
+        conversationId: "conversation-1",
+        attachmentId,
+      });
+      const deleted = await client.deleteAttachment({
+        conversationId: "conversation-1",
+        attachmentId,
+      });
+
+      expect(listed.attachments.map((file) => file.id)).toEqual([attachmentId]);
+      expect(listed.attachments[0]?.uploadedAt).toEqual(new Date(timestamp));
+      expect(upload.attachmentId).toBe(attachmentId);
+      expect(upload.uploadUrl).toBe("https://files.example/upload?signature=1");
+      expect(upload.expiresAt).toEqual(new Date(timestamp));
+      expect(confirmed.kind).toBe("text");
+      expect(download.url).toBe("https://files.example/download?signature=2");
+      expect(deleted).toBeUndefined();
+    } finally {
+      server.stop(true);
+    }
+
+    expect(
+      requests.map((request) => `${request.method} ${request.path}`),
+    ).toEqual([
+      "GET /v1/conversations/conversation-1/attachments",
+      "POST /v1/conversations/conversation-1/actions/request-attachment-upload",
+      "POST /v1/conversations/conversation-1/actions/confirm-attachment-upload",
+      "POST /v1/conversations/conversation-1/actions/request-attachment-download-url",
+      "POST /v1/conversations/conversation-1/actions/delete-attachment",
+    ]);
+    expect(requests.map((request) => request.authorization)).toEqual([
+      "Bearer token-1",
+      "Bearer token-2",
+      "Bearer token-3",
+      "Bearer token-4",
+      "Bearer token-5",
+    ]);
+    expect(requests.map((request) => request.actorId)).toEqual([
+      null,
+      "user-4821",
+      null,
+      null,
+      null,
+    ]);
+    expect(requests.map((request) => request.body)).toEqual([
+      "",
+      JSON.stringify({fileName: "console.log", sizeBytes: 48213}),
+      JSON.stringify({attachmentId}),
+      JSON.stringify({attachmentId}),
+      JSON.stringify({attachmentId}),
+    ]);
+  });
+
+  it("carries the free allowance when an upload exceeds the storage limit", async () => {
+    const server = Bun.serve({
+      port: 0,
+      fetch(): Response {
+        return Response.json(
+          {
+            error: "QuotaExceeded",
+            message: "The attachment allowance cannot hold this file.",
+            remainingBytes: 1024,
+          },
+          {status: 402},
+        );
+      },
+    });
+    const client = new NevaBridgeClient({
+      baseUrl: server.url.toString(),
+      tokenProvider: () => "token",
+    });
+
+    try {
+      await client.requestAttachmentUpload({
+        conversationId: "conversation-1",
+        actorId: "user-4821",
+        request: {fileName: "screen.mp4", sizeBytes: 90000000},
+      });
+      throw new Error("Expected requestAttachmentUpload to fail.");
+    } catch (error: unknown) {
+      expect(error).toBeInstanceOf(NevaBridgeApiError);
+      if (!(error instanceof NevaBridgeApiError)) {
+        throw error;
+      }
+      expect(error.status).toBe(402);
+      expect(error.detail).toEqual({
+        error: "QuotaExceeded",
+        message: "The attachment allowance cannot hold this file.",
+        remainingBytes: 1024,
+      });
+    } finally {
+      server.stop(true);
+    }
+  });
+
   it("preserves unknown enum wire values without throwing", async () => {
     const server = Bun.serve({
       port: 0,

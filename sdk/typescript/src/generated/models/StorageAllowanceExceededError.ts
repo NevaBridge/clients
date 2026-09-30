@@ -14,52 +14,82 @@
 
 import { mapValues } from '../runtime.js';
 /**
- * The body API Gateway sends when it gives up on a request.
+ * The tenant's attachment allowance cannot hold the requested file.
  * @export
- * @interface EdgeError
+ * @interface StorageAllowanceExceededError
  */
-export interface EdgeError {
+export interface StorageAllowanceExceededError {
     /**
      *
+     * @type {StorageAllowanceExceededErrorErrorEnum}
+     * @memberof StorageAllowanceExceededError
+     */
+    error: StorageAllowanceExceededErrorErrorEnum;
+    /**
+     * A human-readable explanation. Do not parse it.
      * @type {string}
-     * @memberof EdgeError
+     * @memberof StorageAllowanceExceededError
      */
     message: string;
+    /**
+     * Bytes still free in the tenant's allowance.
+     * @type {number}
+     * @memberof StorageAllowanceExceededError
+     */
+    remainingBytes: number;
 }
 
+
 /**
- * Check if a given object implements the EdgeError interface.
+ * @export
  */
-export function instanceOfEdgeError(value: object): value is EdgeError {
+export const StorageAllowanceExceededErrorErrorEnum = {
+    QuotaExceeded: 'QuotaExceeded'
+} as const;
+export type StorageAllowanceExceededErrorErrorEnum = typeof StorageAllowanceExceededErrorErrorEnum[keyof typeof StorageAllowanceExceededErrorErrorEnum];
+
+
+/**
+ * Check if a given object implements the StorageAllowanceExceededError interface.
+ */
+export function instanceOfStorageAllowanceExceededError(value: object): value is StorageAllowanceExceededError {
+    if (!('error' in value) || value['error'] === undefined) return false;
+    if (value['error'] !== 'QuotaExceeded') return false;
+
     if (!('message' in value) || value['message'] === undefined) return false;
+    if (!('remainingBytes' in value) || value['remainingBytes'] === undefined) return false;
     return true;
 }
 
-export function EdgeErrorFromJSON(json: any): EdgeError {
-    return EdgeErrorFromJSONTyped(json, false);
+export function StorageAllowanceExceededErrorFromJSON(json: any): StorageAllowanceExceededError {
+    return StorageAllowanceExceededErrorFromJSONTyped(json, false);
 }
 
-export function EdgeErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): EdgeError {
+export function StorageAllowanceExceededErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): StorageAllowanceExceededError {
     if (json == null) {
         return json;
     }
     return {
 
+        'error': json['error'],
         'message': json['message'],
+        'remainingBytes': json['remainingBytes'],
     };
 }
 
-export function EdgeErrorToJSON(json: any): EdgeError {
-    return EdgeErrorToJSONTyped(json, false);
+export function StorageAllowanceExceededErrorToJSON(json: any): StorageAllowanceExceededError {
+    return StorageAllowanceExceededErrorToJSONTyped(json, false);
 }
 
-export function EdgeErrorToJSONTyped(value?: EdgeError | null, ignoreDiscriminator: boolean = false): any {
+export function StorageAllowanceExceededErrorToJSONTyped(value?: StorageAllowanceExceededError | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
 
+        'error': value['error'],
         'message': value['message'],
+        'remainingBytes': value['remainingBytes'],
     };
 }

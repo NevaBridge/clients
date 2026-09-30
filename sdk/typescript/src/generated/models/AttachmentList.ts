@@ -13,53 +13,61 @@
  */
 
 import { mapValues } from '../runtime.js';
+import type { Attachment } from './Attachment.js';
+import {
+    AttachmentFromJSON,
+    AttachmentFromJSONTyped,
+    AttachmentToJSON,
+    AttachmentToJSONTyped,
+} from './Attachment.js';
+
 /**
- * The body API Gateway sends when it gives up on a request.
+ *
  * @export
- * @interface EdgeError
+ * @interface AttachmentList
  */
-export interface EdgeError {
+export interface AttachmentList {
     /**
      *
-     * @type {string}
-     * @memberof EdgeError
+     * @type {Array<Attachment>}
+     * @memberof AttachmentList
      */
-    message: string;
+    attachments: Array<Attachment>;
 }
 
 /**
- * Check if a given object implements the EdgeError interface.
+ * Check if a given object implements the AttachmentList interface.
  */
-export function instanceOfEdgeError(value: object): value is EdgeError {
-    if (!('message' in value) || value['message'] === undefined) return false;
+export function instanceOfAttachmentList(value: object): value is AttachmentList {
+    if (!('attachments' in value) || value['attachments'] === undefined) return false;
     return true;
 }
 
-export function EdgeErrorFromJSON(json: any): EdgeError {
-    return EdgeErrorFromJSONTyped(json, false);
+export function AttachmentListFromJSON(json: any): AttachmentList {
+    return AttachmentListFromJSONTyped(json, false);
 }
 
-export function EdgeErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): EdgeError {
+export function AttachmentListFromJSONTyped(json: any, ignoreDiscriminator: boolean): AttachmentList {
     if (json == null) {
         return json;
     }
     return {
 
-        'message': json['message'],
+        'attachments': ((json['attachments'] as Array<any>).map(AttachmentFromJSON)),
     };
 }
 
-export function EdgeErrorToJSON(json: any): EdgeError {
-    return EdgeErrorToJSONTyped(json, false);
+export function AttachmentListToJSON(json: any): AttachmentList {
+    return AttachmentListToJSONTyped(json, false);
 }
 
-export function EdgeErrorToJSONTyped(value?: EdgeError | null, ignoreDiscriminator: boolean = false): any {
+export function AttachmentListToJSONTyped(value?: AttachmentList | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
 
-        'message': value['message'],
+        'attachments': ((value['attachments'] as Array<any>).map(AttachmentToJSON)),
     };
 }

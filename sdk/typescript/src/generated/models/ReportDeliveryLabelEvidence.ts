@@ -14,52 +14,72 @@
 
 import { mapValues } from '../runtime.js';
 /**
- * The body API Gateway sends when it gives up on a request.
+ * Which labels the delivery asked the tracker for, which it attached,
+ * and which it skipped. Present only for connectors that apply labels.
+ *
  * @export
- * @interface EdgeError
+ * @interface ReportDeliveryLabelEvidence
  */
-export interface EdgeError {
+export interface ReportDeliveryLabelEvidence {
     /**
      *
-     * @type {string}
-     * @memberof EdgeError
+     * @type {Array<string>}
+     * @memberof ReportDeliveryLabelEvidence
      */
-    message: string;
+    requested: Array<string>;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof ReportDeliveryLabelEvidence
+     */
+    attached: Array<string>;
+    /**
+     *
+     * @type {Array<string>}
+     * @memberof ReportDeliveryLabelEvidence
+     */
+    skipped: Array<string>;
 }
 
 /**
- * Check if a given object implements the EdgeError interface.
+ * Check if a given object implements the ReportDeliveryLabelEvidence interface.
  */
-export function instanceOfEdgeError(value: object): value is EdgeError {
-    if (!('message' in value) || value['message'] === undefined) return false;
+export function instanceOfReportDeliveryLabelEvidence(value: object): value is ReportDeliveryLabelEvidence {
+    if (!('requested' in value) || value['requested'] === undefined) return false;
+    if (!('attached' in value) || value['attached'] === undefined) return false;
+    if (!('skipped' in value) || value['skipped'] === undefined) return false;
     return true;
 }
 
-export function EdgeErrorFromJSON(json: any): EdgeError {
-    return EdgeErrorFromJSONTyped(json, false);
+export function ReportDeliveryLabelEvidenceFromJSON(json: any): ReportDeliveryLabelEvidence {
+    return ReportDeliveryLabelEvidenceFromJSONTyped(json, false);
 }
 
-export function EdgeErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): EdgeError {
+export function ReportDeliveryLabelEvidenceFromJSONTyped(json: any, ignoreDiscriminator: boolean): ReportDeliveryLabelEvidence {
     if (json == null) {
         return json;
     }
     return {
 
-        'message': json['message'],
+        'requested': json['requested'],
+        'attached': json['attached'],
+        'skipped': json['skipped'],
     };
 }
 
-export function EdgeErrorToJSON(json: any): EdgeError {
-    return EdgeErrorToJSONTyped(json, false);
+export function ReportDeliveryLabelEvidenceToJSON(json: any): ReportDeliveryLabelEvidence {
+    return ReportDeliveryLabelEvidenceToJSONTyped(json, false);
 }
 
-export function EdgeErrorToJSONTyped(value?: EdgeError | null, ignoreDiscriminator: boolean = false): any {
+export function ReportDeliveryLabelEvidenceToJSONTyped(value?: ReportDeliveryLabelEvidence | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
 
-        'message': value['message'],
+        'requested': value['requested'],
+        'attached': value['attached'],
+        'skipped': value['skipped'],
     };
 }

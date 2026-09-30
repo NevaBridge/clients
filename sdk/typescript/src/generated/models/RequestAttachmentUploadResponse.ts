@@ -14,52 +14,72 @@
 
 import { mapValues } from '../runtime.js';
 /**
- * The body API Gateway sends when it gives up on a request.
+ *
  * @export
- * @interface EdgeError
+ * @interface RequestAttachmentUploadResponse
  */
-export interface EdgeError {
+export interface RequestAttachmentUploadResponse {
     /**
+     * A NevaBridge attachment id.
+     * @type {string}
+     * @memberof RequestAttachmentUploadResponse
+     */
+    attachmentId: string;
+    /**
+     * A presigned `PUT` for exactly the declared size. Send the bytes with
+     * the header `If-None-Match: *`.
      *
      * @type {string}
-     * @memberof EdgeError
+     * @memberof RequestAttachmentUploadResponse
      */
-    message: string;
+    uploadUrl: string;
+    /**
+     * When `uploadUrl` stops accepting the upload.
+     * @type {Date}
+     * @memberof RequestAttachmentUploadResponse
+     */
+    expiresAt: Date;
 }
 
 /**
- * Check if a given object implements the EdgeError interface.
+ * Check if a given object implements the RequestAttachmentUploadResponse interface.
  */
-export function instanceOfEdgeError(value: object): value is EdgeError {
-    if (!('message' in value) || value['message'] === undefined) return false;
+export function instanceOfRequestAttachmentUploadResponse(value: object): value is RequestAttachmentUploadResponse {
+    if (!('attachmentId' in value) || value['attachmentId'] === undefined) return false;
+    if (!('uploadUrl' in value) || value['uploadUrl'] === undefined) return false;
+    if (!('expiresAt' in value) || value['expiresAt'] === undefined) return false;
     return true;
 }
 
-export function EdgeErrorFromJSON(json: any): EdgeError {
-    return EdgeErrorFromJSONTyped(json, false);
+export function RequestAttachmentUploadResponseFromJSON(json: any): RequestAttachmentUploadResponse {
+    return RequestAttachmentUploadResponseFromJSONTyped(json, false);
 }
 
-export function EdgeErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): EdgeError {
+export function RequestAttachmentUploadResponseFromJSONTyped(json: any, ignoreDiscriminator: boolean): RequestAttachmentUploadResponse {
     if (json == null) {
         return json;
     }
     return {
 
-        'message': json['message'],
+        'attachmentId': json['attachmentId'],
+        'uploadUrl': json['uploadUrl'],
+        'expiresAt': (new Date(json['expiresAt'])),
     };
 }
 
-export function EdgeErrorToJSON(json: any): EdgeError {
-    return EdgeErrorToJSONTyped(json, false);
+export function RequestAttachmentUploadResponseToJSON(json: any): RequestAttachmentUploadResponse {
+    return RequestAttachmentUploadResponseToJSONTyped(json, false);
 }
 
-export function EdgeErrorToJSONTyped(value?: EdgeError | null, ignoreDiscriminator: boolean = false): any {
+export function RequestAttachmentUploadResponseToJSONTyped(value?: RequestAttachmentUploadResponse | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
 
-        'message': value['message'],
+        'attachmentId': value['attachmentId'],
+        'uploadUrl': value['uploadUrl'],
+        'expiresAt': value['expiresAt'].toISOString(),
     };
 }

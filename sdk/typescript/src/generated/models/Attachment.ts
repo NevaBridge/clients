@@ -13,53 +13,110 @@
  */
 
 import { mapValues } from '../runtime.js';
-/**
- * The body API Gateway sends when it gives up on a request.
- * @export
- * @interface EdgeError
- */
-export interface EdgeError {
-    /**
-     *
-     * @type {string}
-     * @memberof EdgeError
-     */
-    message: string;
-}
+import type { AttachmentKind } from './AttachmentKind.js';
+import {
+    AttachmentKindFromJSON,
+    AttachmentKindFromJSONTyped,
+    AttachmentKindToJSON,
+    AttachmentKindToJSONTyped,
+} from './AttachmentKind.js';
 
 /**
- * Check if a given object implements the EdgeError interface.
+ * One confirmed file attached to a conversation.
+ * @export
+ * @interface Attachment
  */
-export function instanceOfEdgeError(value: object): value is EdgeError {
-    if (!('message' in value) || value['message'] === undefined) return false;
+export interface Attachment {
+    /**
+     * A NevaBridge attachment id.
+     * @type {string}
+     * @memberof Attachment
+     */
+    id: string;
+    /**
+     * The name given when the upload was requested.
+     * @type {string}
+     * @memberof Attachment
+     */
+    fileName: string;
+    /**
+     *
+     * @type {AttachmentKind}
+     * @memberof Attachment
+     */
+    kind: AttachmentKind;
+    /**
+     *
+     * @type {number}
+     * @memberof Attachment
+     */
+    sizeBytes: number;
+    /**
+     * `api:<X-Actor-Id>` for a file uploaded through this API, or the email
+     * address of the NevaBridge app user who uploaded it.
+     *
+     * @type {string}
+     * @memberof Attachment
+     */
+    uploadedBy: string;
+    /**
+     *
+     * @type {Date}
+     * @memberof Attachment
+     */
+    uploadedAt: Date;
+}
+
+
+
+/**
+ * Check if a given object implements the Attachment interface.
+ */
+export function instanceOfAttachment(value: object): value is Attachment {
+    if (!('id' in value) || value['id'] === undefined) return false;
+    if (!('fileName' in value) || value['fileName'] === undefined) return false;
+    if (!('kind' in value) || value['kind'] === undefined) return false;
+    if (!('sizeBytes' in value) || value['sizeBytes'] === undefined) return false;
+    if (!('uploadedBy' in value) || value['uploadedBy'] === undefined) return false;
+    if (!('uploadedAt' in value) || value['uploadedAt'] === undefined) return false;
     return true;
 }
 
-export function EdgeErrorFromJSON(json: any): EdgeError {
-    return EdgeErrorFromJSONTyped(json, false);
+export function AttachmentFromJSON(json: any): Attachment {
+    return AttachmentFromJSONTyped(json, false);
 }
 
-export function EdgeErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): EdgeError {
+export function AttachmentFromJSONTyped(json: any, ignoreDiscriminator: boolean): Attachment {
     if (json == null) {
         return json;
     }
     return {
 
-        'message': json['message'],
+        'id': json['id'],
+        'fileName': json['fileName'],
+        'kind': AttachmentKindFromJSON(json['kind']),
+        'sizeBytes': json['sizeBytes'],
+        'uploadedBy': json['uploadedBy'],
+        'uploadedAt': (new Date(json['uploadedAt'])),
     };
 }
 
-export function EdgeErrorToJSON(json: any): EdgeError {
-    return EdgeErrorToJSONTyped(json, false);
+export function AttachmentToJSON(json: any): Attachment {
+    return AttachmentToJSONTyped(json, false);
 }
 
-export function EdgeErrorToJSONTyped(value?: EdgeError | null, ignoreDiscriminator: boolean = false): any {
+export function AttachmentToJSONTyped(value?: Attachment | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
 
-        'message': value['message'],
+        'id': value['id'],
+        'fileName': value['fileName'],
+        'kind': AttachmentKindToJSON(value['kind']),
+        'sizeBytes': value['sizeBytes'],
+        'uploadedBy': value['uploadedBy'],
+        'uploadedAt': value['uploadedAt'].toISOString(),
     };
 }

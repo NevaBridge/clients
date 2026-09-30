@@ -1,10 +1,13 @@
 import type {
+  Attachment,
+  AttachmentKindValue,
   ConversationDetail,
   ConversationStatusValue,
   EdgeError,
   ModelInvocationError,
   ReportStatusValue,
   StartConversationOptions,
+  StorageAllowanceExceededError,
 } from "@nevabridge/sdk";
 
 const futureConversationStatus: ConversationStatusValue = "future_status";
@@ -46,3 +49,25 @@ void futureModelFailure;
 const gatewayTimeout: EdgeError = {message: "Endpoint request timed out"};
 
 void gatewayTimeout;
+
+// The service may accept more file types later, each with a new kind.
+const futureKind: AttachmentKindValue = "future_kind";
+const futureAttachment: Attachment = {
+  id: "attachment-00000000-0000-4000-8000-000000000000",
+  fileName: "trace.bin",
+  kind: futureKind,
+  sizeBytes: 1,
+  uploadedBy: "api:user-4821",
+  uploadedAt: new Date(),
+};
+
+void futureAttachment;
+
+// A 402 from requestAttachmentUpload says how many bytes are still free.
+const allowance: StorageAllowanceExceededError = {
+  error: "QuotaExceeded",
+  message: "The attachment allowance cannot hold this file.",
+  remainingBytes: 1024,
+};
+
+void allowance;

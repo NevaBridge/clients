@@ -14,52 +14,52 @@
 
 import { mapValues } from '../runtime.js';
 /**
- * The body API Gateway sends when it gives up on a request.
+ *
  * @export
- * @interface EdgeError
+ * @interface AttachmentDownloadUrl
  */
-export interface EdgeError {
+export interface AttachmentDownloadUrl {
     /**
-     *
+     * A presigned `GET` that serves the file for 5 minutes.
      * @type {string}
-     * @memberof EdgeError
+     * @memberof AttachmentDownloadUrl
      */
-    message: string;
+    url: string;
 }
 
 /**
- * Check if a given object implements the EdgeError interface.
+ * Check if a given object implements the AttachmentDownloadUrl interface.
  */
-export function instanceOfEdgeError(value: object): value is EdgeError {
-    if (!('message' in value) || value['message'] === undefined) return false;
+export function instanceOfAttachmentDownloadUrl(value: object): value is AttachmentDownloadUrl {
+    if (!('url' in value) || value['url'] === undefined) return false;
     return true;
 }
 
-export function EdgeErrorFromJSON(json: any): EdgeError {
-    return EdgeErrorFromJSONTyped(json, false);
+export function AttachmentDownloadUrlFromJSON(json: any): AttachmentDownloadUrl {
+    return AttachmentDownloadUrlFromJSONTyped(json, false);
 }
 
-export function EdgeErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): EdgeError {
+export function AttachmentDownloadUrlFromJSONTyped(json: any, ignoreDiscriminator: boolean): AttachmentDownloadUrl {
     if (json == null) {
         return json;
     }
     return {
 
-        'message': json['message'],
+        'url': json['url'],
     };
 }
 
-export function EdgeErrorToJSON(json: any): EdgeError {
-    return EdgeErrorToJSONTyped(json, false);
+export function AttachmentDownloadUrlToJSON(json: any): AttachmentDownloadUrl {
+    return AttachmentDownloadUrlToJSONTyped(json, false);
 }
 
-export function EdgeErrorToJSONTyped(value?: EdgeError | null, ignoreDiscriminator: boolean = false): any {
+export function AttachmentDownloadUrlToJSONTyped(value?: AttachmentDownloadUrl | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
 
-        'message': value['message'],
+        'url': value['url'],
     };
 }

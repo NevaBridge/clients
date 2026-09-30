@@ -17,8 +17,13 @@ Consumers call a small handwritten client and never touch generated code or inte
 - `getConversation`
 - `appendMessage`
 - `submitReport`
+- `listAttachments`
+- `requestAttachmentUpload`
+- `confirmAttachmentUpload`
+- `requestAttachmentDownloadUrl`
+- `deleteAttachment`
 
-These five are the whole supported public API.
+These ten are the whole supported public API.
 
 ## Authentication and endpoint
 
@@ -41,6 +46,7 @@ The [SDK README](../../sdk/typescript/README.md#errors) explains each status.
 The audience of a conversation cannot change after it starts, so later methods never send the header.
 Callers send every role that applies, because each role is a separate grant.
 An authenticated customer who may also use public knowledge sends `anonymous` and `customer`.
+Roles only take effect for tenants with the knowledge base feature, where the assistant answers from the documents those roles may read.
 
 ## Writer model and response language
 
@@ -48,6 +54,19 @@ The first message may set `writerModelKey` to choose the model that writes the r
 The conversation keeps that model, and a later message that names a different one fails with status 400.
 Summaries and details return the chosen `writerModelKey`. Conversations created before the model was fixed per conversation have none.
 Each message may set `responseLanguage` to a BCP 47 tag. A valid tag overrides automatic language detection for that turn, and the API ignores an invalid one.
+
+## Attachments
+
+A reporter can attach images, videos and text files to a conversation for the engineer who handles the report. The assistant never reads them.
+Attachments need the chat attachments feature, which NevaBridge enables per tenant. Without it, every attachment operation fails with status 403.
+
+An upload takes three steps. `requestAttachmentUpload` admits the file by name and exact size and returns a presigned URL.
+The consumer then sends the bytes to that URL with `PUT` and the header `If-None-Match: *`, because the SDK never handles file contents.
+`confirmAttachmentUpload` then attaches the file.
+A conversation holds at most 10 files of up to 100 MB each, the tenant's files share 5 GB, and the file name's extension decides whether the type is accepted.
+Files can be added and deleted until the report is submitted, and they stay readable afterwards.
+`listAttachments` lists confirmed files, `requestAttachmentDownloadUrl` returns a URL valid for 5 minutes, and `deleteAttachment` removes a file.
+The [SDK README](../../sdk/typescript/README.md#attach-files) has a full upload example and every limit.
 
 ## Types and compatibility
 
@@ -62,6 +81,7 @@ They must not build an inactivity timer or an automatic submit that retries.
 NevaBridge finalizes abandoned conversations itself.
 Every successful turn restarts a 60-minute window, and a sweep runs every 10 minutes, so finalization usually happens 60 to 70 minutes after the last turn.
 A manual submit cancels the window. An abandoned conversation goes through the same finalization and connector delivery as a submitted one, and its report records `submissionOrigin: "auto_abandoned"`.
+The assistant can also submit a report during a turn when it judges it complete, which records `submissionOrigin: "auto_assistant"`.
 
 The server currently finalizes only the first in-progress report this way, and never finalizes conversations authenticated as staff.
 

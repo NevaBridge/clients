@@ -26,7 +26,7 @@ The token provider returns the API key. The client calls it before every operati
 
 Pass the user's display name as `actorName`, unencoded. The SDK percent-encodes it for the `X-Actor-Name` header, which handles non-ASCII names.
 
-Pass every knowledge audience that applies in `actorRoles`. Each role is a separate grant, so an authenticated customer who may also use public knowledge sends both `"anonymous"` and `"customer"`. The SDK sends the `X-Actor-Roles` header only when it starts a conversation.
+Pass every knowledge audience that applies in `actorRoles`. Each role is a separate grant, so an authenticated customer who may also use public knowledge sends both `"anonymous"` and `"customer"`. The SDK sends the `X-Actor-Roles` header only when it starts a conversation. Roles only matter when NevaBridge has enabled the knowledge base feature for your tenant. With it, the assistant answers from the tenant documents those roles may read. Without it, turns run the same way without document retrieval.
 
 ## Start and continue a conversation
 
@@ -74,7 +74,7 @@ Statuses 502 and 504 come from the API gateway, not from NevaBridge. Their body 
 
 Call `submitReport` when the user says they are finished. Do not build an inactivity timer or an automatic submit that retries. NevaBridge finalizes an in-progress machine-to-machine conversation itself after 60 minutes without a turn. The server checks for these every 10 minutes, so finalization usually happens 60 to 70 minutes after the last turn.
 
-Every successful turn restarts the 60-minute window. A manual submit cancels it. An abandoned conversation goes through the same finalization and connector delivery as a submitted one. When you read an automatically finalized report, it has `submissionOrigin: "auto_abandoned"`. The server currently finalizes only the first in-progress report this way. Conversations authenticated as staff are never finalized automatically.
+Every successful turn restarts the 60-minute window. A manual submit cancels it. An abandoned conversation goes through the same finalization and connector delivery as a submitted one. When you read an automatically finalized report, it has `submissionOrigin: "auto_abandoned"`. The assistant can also submit a report during a turn when it judges the report complete. That report has `submissionOrigin: "auto_assistant"`. The server currently finalizes only the first in-progress report this way. Conversations authenticated as staff are never finalized automatically.
 
 ```typescript
 for (const report of turn.reports) {
@@ -89,6 +89,49 @@ for (const report of turn.reports) {
 
 The SDK has no inactivity setting, no timer, and no automatic submit function.
 
+## Attach files
+
+A reporter can attach screenshots, screen recordings and logs for the engineer who handles the report. The assistant never reads them. Attachments need the chat attachments feature. Without it, every attachment method fails with status 403, and the message names the feature. Ask NevaBridge to enable it for your tenant.
+
+Uploading a file takes three steps. The SDK makes the two API calls, and your code sends the bytes to storage:
+
+```typescript
+import {readFile} from "node:fs/promises";
+
+const bytes = await readFile("console.log");
+const upload = await client.requestAttachmentUpload({
+  conversationId,
+  actorId: "user-4821",
+  request: {fileName: "console.log", sizeBytes: bytes.byteLength},
+});
+
+const stored = await fetch(upload.uploadUrl, {
+  method: "PUT",
+  headers: {"If-None-Match": "*"},
+  body: bytes,
+});
+if (!stored.ok) {
+  throw new Error(`Storage refused the upload with status ${stored.status}.`);
+}
+
+const attachment = await client.confirmAttachmentUpload({
+  conversationId,
+  attachmentId: upload.attachmentId,
+});
+```
+
+- `sizeBytes` must be the exact size of the file, at most 100 MB. The upload URL has that size signed into it, so storage refuses any other length.
+- The upload URL accepts one upload and stops working at `expiresAt`, 15 minutes after it was issued.
+- The file name's extension decides the type: `png`, `jpg`, `jpeg`, `gif`, `webp`, `mp4`, `mov`, `webm`, `txt`, `log`, `md`, `csv`, `json`, `xml`, `yaml` or `yml`. Any other extension fails with status 400 and `UnsupportedAttachmentType`.
+- A conversation holds at most 10 files, counting uploads not yet confirmed. The 11th request fails with status 409 and `AttachmentLimitReached`.
+- All of a tenant's files share a 5 GB allowance. A file that does not fit fails with status 402, and the error's `detail` is a `StorageAllowanceExceededError` whose `remainingBytes` says how much is left.
+- `actorId` is recorded on the file as `api:<actorId>` and shown to the engineer. It does not have to match the conversation's reporter.
+- If the bytes have not arrived, `confirmAttachmentUpload` fails with status 409 and `AttachmentNotUploaded`.
+
+Files can be added and deleted until the conversation's report is submitted. After that, they can still be listed and downloaded.
+
+`listAttachments` returns the confirmed files. `requestAttachmentDownloadUrl` returns a URL that serves one file for 5 minutes, with a content type NevaBridge chooses from the extension. `deleteAttachment` removes a file, and deleting a file that is already gone succeeds.
+
 ## Supported operations
 
 - `startConversation`
@@ -96,5 +139,10 @@ The SDK has no inactivity setting, no timer, and no automatic submit function.
 - `getConversation`
 - `appendMessage`
 - `submitReport`
+- `listAttachments`
+- `requestAttachmentUpload`
+- `confirmAttachmentUpload`
+- `requestAttachmentDownloadUrl`
+- `deleteAttachment`
 
 The supported public contract includes only these operations.

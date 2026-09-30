@@ -7,7 +7,7 @@ Official client libraries for the [NevaBridge](https://nevabridge.com) Tenant In
 | [`@nevabridge/sdk`](sdk/typescript) | TypeScript / Node.js 22+ | Pre-release |
 
 The API lets your backend run a NevaBridge reporting conversation. It can start a conversation,
-list conversations, read one, append a turn, and submit the report. See
+list conversations, read one, append a turn, attach files, and submit the report. See
 [`sdk/typescript/README.md`](sdk/typescript/README.md) for usage.
 
 ## Get an API key

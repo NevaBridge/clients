@@ -14,52 +14,61 @@
 
 import { mapValues } from '../runtime.js';
 /**
- * The body API Gateway sends when it gives up on a request.
+ *
  * @export
- * @interface EdgeError
+ * @interface RequestAttachmentUploadRequest
  */
-export interface EdgeError {
+export interface RequestAttachmentUploadRequest {
     /**
-     *
+     * The file's name. Its extension decides whether the file is accepted.
      * @type {string}
-     * @memberof EdgeError
+     * @memberof RequestAttachmentUploadRequest
      */
-    message: string;
+    fileName: string;
+    /**
+     * The exact size of the file. At most 100 MB (100000000 bytes).
+     * @type {number}
+     * @memberof RequestAttachmentUploadRequest
+     */
+    sizeBytes: number;
 }
 
 /**
- * Check if a given object implements the EdgeError interface.
+ * Check if a given object implements the RequestAttachmentUploadRequest interface.
  */
-export function instanceOfEdgeError(value: object): value is EdgeError {
-    if (!('message' in value) || value['message'] === undefined) return false;
+export function instanceOfRequestAttachmentUploadRequest(value: object): value is RequestAttachmentUploadRequest {
+    if (!('fileName' in value) || value['fileName'] === undefined) return false;
+    if (!('sizeBytes' in value) || value['sizeBytes'] === undefined) return false;
     return true;
 }
 
-export function EdgeErrorFromJSON(json: any): EdgeError {
-    return EdgeErrorFromJSONTyped(json, false);
+export function RequestAttachmentUploadRequestFromJSON(json: any): RequestAttachmentUploadRequest {
+    return RequestAttachmentUploadRequestFromJSONTyped(json, false);
 }
 
-export function EdgeErrorFromJSONTyped(json: any, ignoreDiscriminator: boolean): EdgeError {
+export function RequestAttachmentUploadRequestFromJSONTyped(json: any, ignoreDiscriminator: boolean): RequestAttachmentUploadRequest {
     if (json == null) {
         return json;
     }
     return {
 
-        'message': json['message'],
+        'fileName': json['fileName'],
+        'sizeBytes': json['sizeBytes'],
     };
 }
 
-export function EdgeErrorToJSON(json: any): EdgeError {
-    return EdgeErrorToJSONTyped(json, false);
+export function RequestAttachmentUploadRequestToJSON(json: any): RequestAttachmentUploadRequest {
+    return RequestAttachmentUploadRequestToJSONTyped(json, false);
 }
 
-export function EdgeErrorToJSONTyped(value?: EdgeError | null, ignoreDiscriminator: boolean = false): any {
+export function RequestAttachmentUploadRequestToJSONTyped(value?: RequestAttachmentUploadRequest | null, ignoreDiscriminator: boolean = false): any {
     if (value == null) {
         return value;
     }
 
     return {
 
-        'message': value['message'],
+        'fileName': value['fileName'],
+        'sizeBytes': value['sizeBytes'],
     };
 }

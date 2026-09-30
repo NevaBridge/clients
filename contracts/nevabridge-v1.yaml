@@ -6,7 +6,8 @@ info:
   summary: The supported NevaBridge operations for a tenant's own backend.
   description: |
     This contract covers the operations a tenant's trusted backend may call to run a
-    NevaBridge reporting conversation and finalize the report it produces.
+    NevaBridge reporting conversation, attach files to it, and finalize the report
+    it produces.
 
     **Supported surface.** Only the operations in this document are supported
     commitments. A NevaBridge API key is tenant-wide and the gateway does not
@@ -20,6 +21,30 @@ info:
     boundary, and NevaBridge does not check that a caller "owns" the actor it names.
     `X-Actor-Roles` is trusted audience context from that backend. Tenant isolation
     comes from the API key alone.
+
+    **Feature entitlements.** Some behavior depends on features NevaBridge enables
+    per tenant. A system-wide setting can switch a feature on or off for every
+    tenant; otherwise the tenant's own entitlement decides. NevaBridge staff manage
+    both, so ask NevaBridge to enable a feature. Each affected operation names its
+    feature in its description and in `x-nevabridge-entitlements`:
+
+    - `chatAttachments`: every Attachments operation. Without it they answer 403
+      `Forbidden`, whose message names the feature. With it, a report delivered
+      to a tracker while its conversation holds uploaded files also carries an
+      attachment count and a link to the files in NevaBridge. Revoking the
+      entitlement keeps the files; granting it again makes them reachable again.
+    - `knowledgebase`: `startConversation` and `appendMessage`. With it, and once
+      the tenant's knowledge base is ready, the assistant grounds its replies in
+      the tenant's documents that the conversation's `X-Actor-Roles` may read.
+      Without it, turns run the same way with no document retrieval and no
+      error, and `X-Actor-Roles` has no effect.
+    - `genericIntake`: no operation here starts a Generic Intake conversation. A
+      tenant that uses Generic Intake in the NevaBridge app should know that
+      `listConversations` leaves those conversations out, and `getConversation`
+      and `appendMessage` refuse them with 400. The Attachments operations
+      accept them.
+
+    Every other behavior in this document is the same for all tenants.
 
 servers:
   - url: https://tenant.api.nevabridge.com
@@ -35,6 +60,11 @@ tags:
     description: Running a reporting conversation and reading it back.
   - name: Reports
     description: Finalizing the structured report a conversation produced.
+  - name: Attachments
+    description: |
+      Files a reporter attaches to a conversation for the engineer who handles the
+      report. The assistant never reads them. Requires the `chatAttachments`
+      entitlement.
 
 paths:
   /v1/products/{productId}/conversations:
@@ -48,8 +78,14 @@ paths:
 
         This is the only operation that establishes the reporter's identity, so
         `X-Actor-Id` is required here and not accepted as an identity on later
-        calls.
+        calls. (`requestAttachmentUpload` reads it separately, to label who
+        uploaded a file.)
+
+        With the `knowledgebase` entitlement, the assistant's reply may draw on
+        the tenant's knowledge base, limited to the documents `X-Actor-Roles`
+        grants. Without it, the turn runs without retrieval.
       tags: [Conversations]
+      x-nevabridge-entitlements: [knowledgebase]
       parameters:
         - $ref: "#/components/parameters/ProductId"
         - $ref: "#/components/parameters/ActorId"
@@ -112,13 +148,18 @@ paths:
       operationId: listConversations
       summary: List a product's conversations
       description: |
-        Lists the conversations NevaBridge holds for one product, newest activity
-        first. Pass `reporterId` to narrow the list to a single reporter, which is
+        Lists the conversations NevaBridge holds for one product, ordered by
+        `updatedAt` ascending, so the most recently active conversation comes
+        last. Pass `reporterId` to narrow the list to a single reporter, which is
         how a tenant backend renders "my reports" for the signed-in user.
 
         Summaries carry no messages. Read one conversation to get its transcript
         and reports.
+
+        Generic Intake conversations, which only tenants with the
+        `genericIntake` entitlement create in the NevaBridge app, are not listed.
       tags: [Conversations]
+      x-nevabridge-entitlements: [genericIntake]
       parameters:
         - $ref: "#/components/parameters/ProductId"
         - name: reporterId
@@ -166,7 +207,11 @@ paths:
         Returns one conversation with its full message history and its current
         reports. Use it to render a transcript, and to poll for a report that a
         turn or the abandonment fallback has since finalized.
+
+        A Generic Intake conversation (see the `genericIntake` entitlement)
+        answers 400.
       tags: [Conversations]
+      x-nevabridge-entitlements: [genericIntake]
       parameters:
         - $ref: "#/components/parameters/ConversationIdPath"
       responses:
@@ -203,7 +248,12 @@ paths:
 
         The reporter's identity was fixed when the conversation started, so
         `X-Actor-Id` is neither required nor read here.
+
+        With the `knowledgebase` entitlement, the reply may draw on the tenant's
+        knowledge base as described for `startConversation`. A Generic Intake
+        conversation (see the `genericIntake` entitlement) answers 400.
       tags: [Conversations]
+      x-nevabridge-entitlements: [knowledgebase, genericIntake]
       parameters:
         - $ref: "#/components/parameters/ConversationIdPath"
       requestBody:
@@ -278,8 +328,16 @@ paths:
         idempotent: it returns the report as it stands and does not deliver it
         twice. If another caller still owns finalization or delivery recovery,
         this operation returns 409 Conflict. Retry after that work has had time
-        to finish or its recovery lease has expired.
+        to finish or its recovery lease has expired. A `deleteAttachment` call in
+        flight on the same conversation also holds submission back for up to
+        a minute, with the same 409.
+
+        Submitting closes the conversation's attachments: the files stay
+        readable, but none can be added or removed. When the conversation holds
+        uploaded files (see the `chatAttachments` entitlement), each delivered
+        tracker issue states how many and links to them in NevaBridge.
       tags: [Reports]
+      x-nevabridge-entitlements: [chatAttachments]
       parameters:
         - $ref: "#/components/parameters/ConversationIdPath"
         - name: reportId
@@ -314,6 +372,320 @@ paths:
           $ref: "#/components/responses/DependencyFailure"
         "429":
           $ref: "#/components/responses/ModelInvocationFailure"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/EdgeFailure"
+        "504":
+          $ref: "#/components/responses/EdgeFailure"
+
+  /v1/conversations/{conversationId}/attachments:
+    get:
+      operationId: listAttachments
+      summary: List a conversation's attachments
+      description: |
+        Returns the files attached to one conversation. Listing keeps working
+        after the conversation closed.
+
+        Confirmed uploads are listed. An unconfirmed upload is not listed while
+        its upload URL is live. Once the URL has expired (plus a margin of about
+        a minute), this call settles it: if its bytes arrived at the declared
+        size and the conversation is still open, the file is attached as if
+        confirmed and listed; otherwise it is discarded, never listed, and its
+        place and bytes are given back.
+
+        Requires the `chatAttachments` entitlement (403 otherwise).
+      tags: [Attachments]
+      x-nevabridge-entitlements: [chatAttachments]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+      responses:
+        "200":
+          description: The conversation's confirmed attachments.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AttachmentsForbidden"
+        "422":
+          $ref: "#/components/responses/ConfigurationFailure"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/EdgeFailure"
+        "504":
+          $ref: "#/components/responses/EdgeFailure"
+
+  /v1/conversations/{conversationId}/actions/request-attachment-upload:
+    post:
+      operationId: requestAttachmentUpload
+      summary: Request an upload URL for one file
+      description: |
+        Admits one file to an open conversation and returns a presigned URL to
+        upload it to. Uploading is three steps:
+
+        1. Call this operation with the file's name and exact size.
+        2. `PUT` exactly `sizeBytes` bytes to `uploadUrl` with the header
+           `If-None-Match: *`. The size and uploader are signed into the URL,
+           so storage refuses any other length. The URL accepts a single
+           upload and stops working at `expiresAt`, 15 minutes after issue.
+        3. Call `confirmAttachmentUpload` with the returned `attachmentId`.
+
+        An admitted file holds one of the conversation's 10 places and its
+        size in the tenant's 5 GB allowance from this call on. An upload that
+        is never confirmed holds both until its URL has expired and
+        `listAttachments` next settles it (see there: arrived bytes are then
+        attached anyway). `deleteAttachment` gives the place back at once and
+        the bytes as described there.
+
+        The file type is taken from the name's extension, matched
+        case-insensitively: `png`, `jpg`, `jpeg`, `gif`, `webp`, `mp4`, `mov`,
+        `webm`, `txt`, `log`, `md`, `csv`, `json`, `xml`, `yaml`, `yml`.
+        Anything else, including SVG and HTML, is refused.
+
+        `X-Actor-Id` is required and recorded as the uploader, `api:<X-Actor-Id>`.
+
+        A conversation is open for attachments until its report is submitted
+        or submission of it starts. A Generic Intake conversation is open until
+        it ends.
+
+        Requires the `chatAttachments` entitlement (403 otherwise).
+      tags: [Attachments]
+      x-nevabridge-entitlements: [chatAttachments]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+        - $ref: "#/components/parameters/UploaderActorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RequestAttachmentUploadRequest"
+            examples:
+              log:
+                summary: A browser console log
+                value:
+                  fileName: console.log
+                  sizeBytes: 48213
+      responses:
+        "200":
+          description: The file is admitted; upload it to `uploadUrl`.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RequestAttachmentUploadResponse"
+        "400":
+          description: |
+            The request failed validation, the conversation does not exist in
+            the caller's tenant, the file type is not accepted
+            (`UnsupportedAttachmentType`), or the conversation no longer accepts
+            attachments (`ConversationNotOpenForAttachments`). The message says
+            which and what to do.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: |
+            The `Authorization` header is missing, malformed, or names a key
+            NevaBridge does not accept, or `X-Actor-Id` is missing.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "402":
+          $ref: "#/components/responses/StorageAllowanceExceeded"
+        "403":
+          $ref: "#/components/responses/AttachmentsForbidden"
+        "409":
+          description: |
+            The conversation already holds 10 files, counting admitted uploads
+            not yet confirmed (`AttachmentLimitReached`); delete one first. Or
+            the conversation changed while the file was being admitted
+            (`Conflict`); retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: The file is larger than 100 MB (`PayloadTooLarge`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/ConfigurationFailure"
+        "424":
+          $ref: "#/components/responses/StorageFailure"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/EdgeFailure"
+        "504":
+          $ref: "#/components/responses/EdgeFailure"
+
+  /v1/conversations/{conversationId}/actions/confirm-attachment-upload:
+    post:
+      operationId: confirmAttachmentUpload
+      summary: Confirm an uploaded file
+      description: |
+        Confirms that the bytes for an admitted file arrived, after which the
+        file is listed and can be opened. Confirming a file that is already
+        confirmed returns it again.
+
+        Requires the `chatAttachments` entitlement (403 otherwise).
+      tags: [Attachments]
+      x-nevabridge-entitlements: [chatAttachments]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachmentCommandRequest"
+      responses:
+        "200":
+          description: The file is attached.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attachment"
+        "400":
+          description: |
+            The request failed validation, the conversation or attachment does
+            not exist in the caller's tenant, or the conversation no longer
+            accepts attachments (`ConversationNotOpenForAttachments`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AttachmentsForbidden"
+        "409":
+          description: |
+            The bytes have not arrived yet, or arrived with a size other than
+            the one declared and were discarded (`AttachmentNotUploaded`; the
+            message says which). Or the conversation changed while confirming
+            (`Conflict`); retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/ConfigurationFailure"
+        "424":
+          $ref: "#/components/responses/StorageFailure"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/EdgeFailure"
+        "504":
+          $ref: "#/components/responses/EdgeFailure"
+
+  /v1/conversations/{conversationId}/actions/request-attachment-download-url:
+    post:
+      operationId: requestAttachmentDownloadUrl
+      summary: Request a download URL for one file
+      description: |
+        Returns a presigned URL that serves one confirmed file for 5 minutes.
+        The content type is chosen by NevaBridge from the file's extension,
+        never taken from the upload; text files are always served as
+        `text/plain; charset=utf-8`. Works after the conversation closed.
+
+        Requires the `chatAttachments` entitlement (403 otherwise).
+      tags: [Attachments]
+      x-nevabridge-entitlements: [chatAttachments]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachmentCommandRequest"
+      responses:
+        "200":
+          description: A short-lived URL for the file.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AttachmentDownloadUrl"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AttachmentsForbidden"
+        "422":
+          $ref: "#/components/responses/ConfigurationFailure"
+        "424":
+          $ref: "#/components/responses/StorageFailure"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/EdgeFailure"
+        "504":
+          $ref: "#/components/responses/EdgeFailure"
+
+  /v1/conversations/{conversationId}/actions/delete-attachment:
+    post:
+      operationId: deleteAttachment
+      summary: Delete one file
+      description: |
+        Removes one file, confirmed or still uploading, from an open
+        conversation. Its place is given back at once. Its bytes are given
+        back at once too, unless its upload URL is still live: then they stay
+        reserved until the URL has expired and `listAttachments` next settles
+        the file, so an upload through the old URL cannot outrun the
+        allowance. Deleting a file that is already gone answers 204 again.
+
+        Requires the `chatAttachments` entitlement (403 otherwise).
+      tags: [Attachments]
+      x-nevabridge-entitlements: [chatAttachments]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttachmentCommandRequest"
+      responses:
+        "204":
+          description: The file is gone.
+        "400":
+          description: |
+            The request failed validation, the conversation does not exist in
+            the caller's tenant, or the conversation no longer accepts changes
+            to its attachments (`ConversationNotOpenForAttachments`).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/AttachmentsForbidden"
+        "409":
+          description: |
+            The file, the conversation, or another deletion on the same
+            conversation changed at the same time (`Conflict`). Retry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          $ref: "#/components/responses/ConfigurationFailure"
+        "424":
+          $ref: "#/components/responses/StorageFailure"
         "500":
           $ref: "#/components/responses/InternalServerError"
         "502":
@@ -394,6 +766,20 @@ components:
         items:
           $ref: "#/components/schemas/ActorRole"
       example: [anonymous, customer]
+
+    UploaderActorId:
+      name: X-Actor-Id
+      in: header
+      required: true
+      description: |
+        Who is uploading, in the tenant's own vocabulary. Recorded on the file as
+        `api:<value>` and shown to the engineer who opens it. Correlation only:
+        it carries no authorization meaning and need not match the
+        conversation's `reporterId`.
+      schema:
+        type: string
+        minLength: 1
+      example: user-4821
 
   responses:
     BadRequest:
@@ -500,6 +886,34 @@ components:
             oneOf:
               - $ref: "#/components/schemas/Error"
               - $ref: "#/components/schemas/ModelInvocationError"
+
+    AttachmentsForbidden:
+      description: |
+        The tenant does not have the `chatAttachments` entitlement, or the key's
+        tenant may not reach the requested resource. The message names the
+        feature when the entitlement is missing.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+    StorageAllowanceExceeded:
+      description: |
+        The tenant's 5 GB attachment allowance cannot hold the file. The body
+        carries the bytes still free.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/StorageAllowanceExceededError"
+
+    StorageFailure:
+      description: |
+        File storage failed while handling the request (`FailedDependency`).
+        Retryable.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
 
     InternalServerError:
       description: An unexpected server or persistence failure.
@@ -724,9 +1138,10 @@ components:
           type: string
           description: |
             How the report came to be submitted. Absent means a manual submit.
-            `auto_abandoned` marks a report the server finalized after its
-            inactivity window elapsed.
-          enum: [manual, auto_abandoned]
+            `auto_assistant` marks a report submitted during a turn because the
+            assistant judged it complete. `auto_abandoned` marks a report the
+            server finalized after its inactivity window elapsed.
+          enum: [manual, auto_assistant, auto_abandoned]
         writerModel:
           $ref: "#/components/schemas/WriterModelKey"
         deliveries:
@@ -765,6 +1180,26 @@ components:
           type: string
         error:
           type: string
+        labelEvidence:
+          type: object
+          description: |
+            Which labels the delivery asked the tracker for, which it attached,
+            and which it skipped. Present only for connectors that apply labels.
+          properties:
+            requested:
+              type: array
+              items:
+                type: string
+            attached:
+              type: array
+              items:
+                type: string
+            skipped:
+              type: array
+              items:
+                type: string
+          required: [requested, attached, skipped]
+          additionalProperties: false
         createdAt:
           type: string
           format: date-time
@@ -777,9 +1212,10 @@ components:
     ConversationTurn:
       type: object
       description: |
-        One completed exchange. `reports` is always the conversation's complete
-        report array, not a delta, so a live UI can redraw from it without a
-        second request.
+        One completed exchange. `reports` always holds every report of the
+        conversation, not a delta, so a live UI can redraw from it without a
+        second request. Reports in a turn omit `applicationContext` and
+        `deliveries`; read the conversation for those.
       properties:
         userMessage:
           $ref: "#/components/schemas/Message"
@@ -835,7 +1271,7 @@ components:
 
     ConnectorType:
       type: string
-      enum: [github, jira, linear, slack]
+      enum: [github, gitlab, jira, linear, slack]
 
     ConnectorDeliveryResult:
       type: object
@@ -1051,6 +1487,122 @@ components:
           type: string
           description: The model catalog key of the failing model.
       required: [error, message, category, provider, role, catalogKey]
+      additionalProperties: false
+
+    AttachmentId:
+      type: string
+      description: A NevaBridge attachment id.
+      pattern: "^attachment-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+
+    AttachmentKind:
+      type: string
+      description: The broad file type, derived from the file name's extension.
+      enum: [image, video, text]
+
+    Attachment:
+      type: object
+      description: One confirmed file attached to a conversation.
+      properties:
+        id:
+          $ref: "#/components/schemas/AttachmentId"
+        fileName:
+          type: string
+          description: The name given when the upload was requested.
+        kind:
+          $ref: "#/components/schemas/AttachmentKind"
+        sizeBytes:
+          type: integer
+          minimum: 1
+        uploadedBy:
+          type: string
+          description: |
+            `api:<X-Actor-Id>` for a file uploaded through this API, or the email
+            address of the NevaBridge app user who uploaded it.
+        uploadedAt:
+          type: string
+          format: date-time
+      required: [id, fileName, kind, sizeBytes, uploadedBy, uploadedAt]
+      additionalProperties: false
+
+    AttachmentList:
+      type: object
+      properties:
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Attachment"
+      required: [attachments]
+      additionalProperties: false
+
+    RequestAttachmentUploadRequest:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: The file's name. Its extension decides whether the file is accepted.
+        sizeBytes:
+          type: integer
+          minimum: 1
+          description: The exact size of the file. At most 100 MB (100000000 bytes).
+      required: [fileName, sizeBytes]
+      additionalProperties: false
+
+    RequestAttachmentUploadResponse:
+      type: object
+      properties:
+        attachmentId:
+          $ref: "#/components/schemas/AttachmentId"
+        uploadUrl:
+          type: string
+          format: uri
+          description: |
+            A presigned `PUT` for exactly the declared size. Send the bytes with
+            the header `If-None-Match: *`.
+        expiresAt:
+          type: string
+          format: date-time
+          description: When `uploadUrl` stops accepting the upload.
+      required: [attachmentId, uploadUrl, expiresAt]
+      additionalProperties: false
+
+    AttachmentCommandRequest:
+      type: object
+      properties:
+        attachmentId:
+          type: string
+          minLength: 1
+          maxLength: 128
+          description: The file to act on, as returned by `requestAttachmentUpload`.
+      required: [attachmentId]
+      additionalProperties: false
+
+    AttachmentDownloadUrl:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+          description: A presigned `GET` that serves the file for 5 minutes.
+      required: [url]
+      additionalProperties: false
+
+    StorageAllowanceExceededError:
+      type: object
+      description: The tenant's attachment allowance cannot hold the requested file.
+      properties:
+        error:
+          type: string
+          const: QuotaExceeded
+        message:
+          type: string
+          description: A human-readable explanation. Do not parse it.
+        remainingBytes:
+          type: integer
+          minimum: 0
+          description: Bytes still free in the tenant's allowance.
+      required: [error, message, remainingBytes]
       additionalProperties: false
 
     EdgeError:
