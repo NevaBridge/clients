@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- The page talks only to its host application. It may not fetch, load or send anything elsewhere. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'none'; form-action 'none'; base-uri 'none'">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NevaBridge</title>
+  <link rel="stylesheet" href="chat.css">
+</head>
+<body class="theme-main-light">
+  <div class="nb-chat">
+    <header class="nb-head">
+      <div class="nb-brand">
+        <span class="nb-mark" aria-hidden="true"></span>
+        <div>
+          <div class="nb-wordmark">Neva<span>Bridge</span></div>
+          <div class="ds-mono">Support</div>
+        </div>
+      </div>
+      <button id="new-report" class="ds-btn ds-btn-quiet" type="button">New report</button>
+    </header>
+
+    <div id="report-type" class="ds-segment is-block nb-report-type" role="group" aria-label="Report type">
+      <button class="ds-segment-opt" type="button" data-category="bug_report" aria-pressed="false">Bug report</button>
+      <button class="ds-segment-opt" type="button" data-category="feature_request" aria-pressed="false">Feature request</button>
+      <button class="ds-segment-opt" type="button" data-category="support_request" aria-pressed="true">Support request</button>
+    </div>
+
+    <div id="report-head" class="nb-report-head" hidden>
+      <div id="report-title" class="ds-h3"></div>
+      <span class="ds-chip"><span class="ds-chip-dot"></span><span id="report-status"></span></span>
+    </div>
+
+    <main id="transcript" class="ds-transcript is-empty" aria-live="polite">
+      <p id="empty-hint" class="nb-empty">
+        Ask a question, suggest an idea or describe a problem. The NevaBridge assistant asks a few
+        follow-up questions and passes it on to the team.
+      </p>
+    </main>
+
+    <details id="report" class="nb-report" hidden>
+      <summary class="ds-mono">Report so far</summary>
+      <div id="report-fields" class="nb-report-fields"></div>
+    </details>
+
+    <ul id="attachments" class="nb-attachments" aria-label="Attached files" hidden></ul>
+
+    <div id="outcome" class="nb-banner" data-tone="good" role="status" hidden></div>
+    <div id="error" class="nb-banner" data-tone="bad" role="alert" hidden></div>
+
+    <form id="composer" class="ds-composer" autocomplete="off">
+      <textarea id="draft" class="ds-composer-input" rows="3" maxlength="32768"
+                placeholder="How can we help?" aria-label="Message"></textarea>
+      <div class="ds-composer-foot">
+        <span class="ds-composer-hint">Enter to send, Shift+Enter for a new line</span>
+        <button id="attach-file" class="ds-btn ds-btn-quiet" type="button" hidden disabled
+                title="Attach a screenshot, video or log file">Attach file</button>
+        <button id="submit-report" class="ds-btn ds-btn-ghost" type="button" disabled>Submit report</button>
+        <button id="send" class="ds-btn ds-btn-primary ds-composer-send" type="submit" disabled>Send</button>
+      </div>
+    </form>
+  </div>
+  <script src="chat.js"></script>
+</body>
+</html>

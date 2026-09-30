@@ -1,0 +1,66 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{CC291C31-C8B7-4BF7-A4AF-4EAA9A3DA11C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NevaBridge.Sample.Client", "src\NevaBridge.Sample.Client\NevaBridge.Sample.Client.csproj", "{004F8D61-F524-498D-9AF1-AC0749858579}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NevaBridge.Sample.KeyStore", "src\NevaBridge.Sample.KeyStore\NevaBridge.Sample.KeyStore.csproj", "{7B5E7FF4-8EA7-4CBA-9112-A7EA4585076B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{E3CE4A8C-0D0D-435B-BB0D-D7234C2832FA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NevaBridge.Sample.Tests", "tests\NevaBridge.Sample.Tests\NevaBridge.Sample.Tests.csproj", "{63F002BF-C5CB-4EAE-860F-1CBB6BE5D238}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NevaBridge.Sample.DesktopApp", "src\NevaBridge.Sample.DesktopApp\NevaBridge.Sample.DesktopApp.csproj", "{AF8D6050-F94D-46BF-B65E-8DD9779114FA}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "packages", "packages", "{545DB02D-3178-4388-B6B6-064426B89053}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NevaBridge.Chat", "..\..\widgets\wpf\src\NevaBridge.Chat\NevaBridge.Chat.csproj", "{DD2B2D3E-6FB3-440B-986A-0562255D0294}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NevaBridge.Wpf", "..\..\widgets\wpf\src\NevaBridge.Wpf\NevaBridge.Wpf.csproj", "{A08C9A7C-8AA8-4B6C-B48C-DB46630D33AD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{004F8D61-F524-498D-9AF1-AC0749858579}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{004F8D61-F524-498D-9AF1-AC0749858579}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{004F8D61-F524-498D-9AF1-AC0749858579}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{004F8D61-F524-498D-9AF1-AC0749858579}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7B5E7FF4-8EA7-4CBA-9112-A7EA4585076B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7B5E7FF4-8EA7-4CBA-9112-A7EA4585076B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7B5E7FF4-8EA7-4CBA-9112-A7EA4585076B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7B5E7FF4-8EA7-4CBA-9112-A7EA4585076B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{63F002BF-C5CB-4EAE-860F-1CBB6BE5D238}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63F002BF-C5CB-4EAE-860F-1CBB6BE5D238}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63F002BF-C5CB-4EAE-860F-1CBB6BE5D238}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63F002BF-C5CB-4EAE-860F-1CBB6BE5D238}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AF8D6050-F94D-46BF-B65E-8DD9779114FA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AF8D6050-F94D-46BF-B65E-8DD9779114FA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AF8D6050-F94D-46BF-B65E-8DD9779114FA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AF8D6050-F94D-46BF-B65E-8DD9779114FA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DD2B2D3E-6FB3-440B-986A-0562255D0294}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD2B2D3E-6FB3-440B-986A-0562255D0294}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD2B2D3E-6FB3-440B-986A-0562255D0294}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD2B2D3E-6FB3-440B-986A-0562255D0294}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A08C9A7C-8AA8-4B6C-B48C-DB46630D33AD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A08C9A7C-8AA8-4B6C-B48C-DB46630D33AD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A08C9A7C-8AA8-4B6C-B48C-DB46630D33AD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A08C9A7C-8AA8-4B6C-B48C-DB46630D33AD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{004F8D61-F524-498D-9AF1-AC0749858579} = {CC291C31-C8B7-4BF7-A4AF-4EAA9A3DA11C}
+		{7B5E7FF4-8EA7-4CBA-9112-A7EA4585076B} = {CC291C31-C8B7-4BF7-A4AF-4EAA9A3DA11C}
+		{63F002BF-C5CB-4EAE-860F-1CBB6BE5D238} = {E3CE4A8C-0D0D-435B-BB0D-D7234C2832FA}
+		{AF8D6050-F94D-46BF-B65E-8DD9779114FA} = {CC291C31-C8B7-4BF7-A4AF-4EAA9A3DA11C}
+		{DD2B2D3E-6FB3-440B-986A-0562255D0294} = {545DB02D-3178-4388-B6B6-064426B89053}
+		{A08C9A7C-8AA8-4B6C-B48C-DB46630D33AD} = {545DB02D-3178-4388-B6B6-064426B89053}
+	EndGlobalSection
+EndGlobal

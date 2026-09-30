@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyTitle>NevaBridge WPF sample</AssemblyTitle>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NevaBridge.Sample.Client\NevaBridge.Sample.Client.csproj" />
+    <ProjectReference Include="..\NevaBridge.Sample.KeyStore\NevaBridge.Sample.KeyStore.csproj" />
+    <ProjectReference Include="..\..\..\..\widgets\wpf\src\NevaBridge.Wpf\NevaBridge.Wpf.csproj" />
+    <ProjectReference Include="..\..\..\..\widgets\wpf\src\NevaBridge.Chat\NevaBridge.Chat.csproj" />
+  </ItemGroup>
+
+</Project>

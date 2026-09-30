@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <IsPackable>true</IsPackable>
+    <PackageId>NevaBridge.Wpf</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>NevaBridge</Authors>
+    <Description>Embed the NevaBridge chat in a WPF application: a native chat control, the NevaBridge web chat in WebView2, and settings providers for the API key.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>nevabridge;wpf;webview2;chat;support</PackageTags>
+    <!-- NevaBridge.Chat ships inside this package instead of as a separate dependency. -->
+    <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeNevaBridgeChat</TargetsForTfmSpecificBuildOutput>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NevaBridge.Chat\NevaBridge.Chat.csproj" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The pinned web chat page, served to WebView2 from the application folder when no web chat URL is set. -->
+    <Content Include="..\..\..\webview-chat\**" Exclude="..\..\..\webview-chat\README.md" LinkBase="webview-chat" CopyToOutputDirectory="PreserveNewest"
+             Pack="true" PackagePath="contentFiles\any\any\webview-chat" PackageCopyToOutput="true" />
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <Target Name="IncludeNevaBridgeChat" DependsOnTargets="ResolveReferences">
+    <ItemGroup>
+      <BuildOutputInPackage Include="@(ReferenceCopyLocalPaths-&gt;WithMetadataValue('ReferenceSourceTarget', 'ProjectReference'))" />
+    </ItemGroup>
+  </Target>
+
+</Project>

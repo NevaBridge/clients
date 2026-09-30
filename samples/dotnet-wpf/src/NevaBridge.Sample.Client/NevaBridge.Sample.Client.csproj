@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\widgets\wpf\src\NevaBridge.Chat\NevaBridge.Chat.csproj" />
+  </ItemGroup>
+
+</Project>

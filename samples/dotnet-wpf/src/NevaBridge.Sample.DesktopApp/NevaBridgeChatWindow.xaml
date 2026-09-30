@@ -1,0 +1,8 @@
+<Window x:Class="NevaBridge.Sample.DesktopApp.NevaBridgeChatWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:nevabridge="clr-namespace:NevaBridge.Wpf;assembly=NevaBridge.Wpf"
+        Title="NevaBridge" Width="460" Height="640"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <nevabridge:NevaBridgeWebChatControl x:Name="Chat" />
+</Window>

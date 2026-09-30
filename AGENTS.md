@@ -60,6 +60,11 @@ CI runs the same gate on every push and pull request, with an explicitly pinned 
 contracts/          vendored, pinned OpenAPI contract
 sdk/generation/     pinned generator configuration, shared across languages
 sdk/typescript/     the @nevabridge/sdk package
+widgets/wpf/        NevaBridge.Wpf NuGet package (.NET; dotnet CLI, not Bun)
+widgets/electron/   @nevabridge/electron npm package (Bun workspace member)
+widgets/webview-chat/ pinned build of the NevaBridge web chat page both host packages ship
+samples/dotnet-wpf/ WPF example on NevaBridge.Wpf (.NET; dotnet CLI, not Bun)
+samples/electron-desktop/ Electron example on @nevabridge/electron (Bun workspace member)
 scripts/            repository-level checks
 tests/              tests for those checks
 ```

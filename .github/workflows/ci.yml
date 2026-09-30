@@ -24,4 +24,33 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: bun install --frozen-lockfile
+        env:
+          # The gate type-checks the Electron package and example; it never starts Electron.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - run: bun run check
+
+  dotnet-tests:
+    name: .NET packages and example tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      # The WPF projects compile on Linux through EnableWindowsTargeting; the SQL Server tests
+      # start a container through Testcontainers on the runner's Docker.
+      - run: dotnet test widgets/wpf/NevaBridge.Wpf.sln
+      - run: dotnet test samples/dotnet-wpf/NevaBridge.WpfSample.sln
+      - run: dotnet format samples/dotnet-wpf/NevaBridge.WpfSample.sln --verify-no-changes
+      - run: dotnet format widgets/wpf/NevaBridge.Wpf.sln --verify-no-changes
+
+  dotnet-windows-build:
+    name: WPF build on Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - run: dotnet build samples/dotnet-wpf/NevaBridge.WpfSample.sln -c Release
+      - run: dotnet pack widgets/wpf/src/NevaBridge.Wpf -c Release -o out

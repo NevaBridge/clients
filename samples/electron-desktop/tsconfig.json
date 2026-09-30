@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "esModuleInterop": true,
+    "lib": ["ES2024", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noImplicitReturns": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2024",
+    "types": ["bun"]
+  },
+  "include": ["src/**/*", "scripts/**/*"]
+}

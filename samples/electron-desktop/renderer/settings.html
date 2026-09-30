@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'"
+    />
+    <title>NevaBridge settings</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <p>
+      Saved encrypted on this computer for your user (Electron safeStorage). The
+      example uses them when NEVABRIDGE_SETTINGS_SOURCE is safe-storage.
+    </p>
+    <form id="settings">
+      <label for="api-key">API key</label>
+      <input id="api-key" type="password" autocomplete="off" />
+      <label for="product-id">Product id</label>
+      <input id="product-id" required />
+      <label for="environment">NevaBridge environment</label>
+      <select id="environment">
+        <option value="sandbox">Sandbox</option>
+        <option value="production">Production</option>
+      </select>
+      <label for="webchat-url"
+        >Web chat URL (empty: the page shipped with the application)</label
+      >
+      <input id="webchat-url" type="url" />
+      <p id="problem" class="problem" hidden></p>
+      <div class="actions">
+        <button id="remove" type="button">Remove saved settings</button>
+        <span class="spacer"></span>
+        <button type="submit">Save</button>
+        <button id="cancel" type="button">Cancel</button>
+      </div>
+    </form>
+    <script src="settings.js"></script>
+  </body>
+</html>

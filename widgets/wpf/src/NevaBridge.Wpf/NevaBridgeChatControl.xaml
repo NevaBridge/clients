@@ -1,0 +1,215 @@
+<UserControl x:Class="NevaBridge.Wpf.NevaBridgeChatControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:NevaBridge.Chat;assembly=NevaBridge.Chat"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=local:ChatViewModel}"
+             d:DesignWidth="420" d:DesignHeight="640"
+             FontFamily="Segoe UI" FontSize="13">
+    <UserControl.Resources>
+        <!-- Hosts can restyle the control by defining these keys in their own resources. -->
+        <SolidColorBrush x:Key="NevaBridge.AccentBrush" Color="#2F5BD3" />
+        <SolidColorBrush x:Key="NevaBridge.ReporterBubbleBrush" Color="#E6ECFB" />
+        <SolidColorBrush x:Key="NevaBridge.AssistantBubbleBrush" Color="#F3F3F3" />
+        <SolidColorBrush x:Key="NevaBridge.BorderBrush" Color="#D9D9D9" />
+        <SolidColorBrush x:Key="NevaBridge.ErrorBrush" Color="#FDECEC" />
+        <SolidColorBrush x:Key="NevaBridge.SuccessBrush" Color="#E8F5EC" />
+        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
+
+        <Style x:Key="NevaBridge.PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource NevaBridge.AccentBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Border BorderBrush="{DynamicResource NevaBridge.BorderBrush}" BorderThickness="1" Background="White">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <DockPanel Grid.Row="0" Margin="12,10" LastChildFill="True">
+                <Button DockPanel.Dock="Right" Content="New report" Padding="10,4"
+                        Command="{Binding NewConversationCommand}" />
+                <StackPanel>
+                    <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding ReportStatus}" Foreground="#666"
+                               Visibility="{Binding HasReport, Converter={StaticResource VisibleWhenTrue}}" />
+                </StackPanel>
+            </DockPanel>
+
+            <!-- Report type: fixed once the conversation has started -->
+            <ListBox Grid.Row="1" Margin="12,0,12,10" ItemsSource="{Binding ReportTypes}"
+                     SelectedValuePath="Category" SelectedValue="{Binding Category}"
+                     IsEnabled="{Binding CanChooseReportType}"
+                     AutomationProperties.Name="Report type"
+                     BorderThickness="1" BorderBrush="{DynamicResource NevaBridge.BorderBrush}" Padding="2"
+                     Background="#F3F3F3" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <UniformGrid Rows="1" />
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate DataType="{x:Type local:ReportTypeOption}">
+                        <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" />
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Cursor" Value="Hand" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <Border x:Name="Segment" Padding="8,5" CornerRadius="3" Background="Transparent">
+                                        <ContentPresenter HorizontalAlignment="Center" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="Segment" Property="Background" Value="{DynamicResource NevaBridge.AccentBrush}" />
+                                            <Setter Property="Foreground" Value="White" />
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Foreground" Value="Black" />
+                                        </Trigger>
+                                        <MultiTrigger>
+                                            <MultiTrigger.Conditions>
+                                                <Condition Property="IsSelected" Value="True" />
+                                                <Condition Property="IsMouseOver" Value="True" />
+                                            </MultiTrigger.Conditions>
+                                            <Setter Property="Foreground" Value="White" />
+                                        </MultiTrigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter Property="Opacity" Value="0.6" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+            </ListBox>
+
+            <!-- Error banner -->
+            <Border Grid.Row="2" Margin="12,0,12,8" Padding="10,6" CornerRadius="4"
+                    Background="{DynamicResource NevaBridge.ErrorBrush}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding ErrorText}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- Transcript -->
+            <ScrollViewer x:Name="TranscriptScroller" Grid.Row="3" VerticalScrollBarVisibility="Auto" Padding="12,0">
+                <StackPanel>
+                    <TextBlock Margin="0,8" Foreground="#666" TextWrapping="Wrap"
+                               Text="Ask a question, suggest an idea or describe a problem. The assistant asks a few follow-up questions and passes it on to the team.">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Messages.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding Messages}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type local:ChatMessageItem}">
+                                <Border x:Name="Bubble" Margin="0,4" Padding="10,7" CornerRadius="8" MaxWidth="340"
+                                        HorizontalAlignment="Left" Background="{DynamicResource NevaBridge.AssistantBubbleBrush}">
+                                    <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                                             BorderThickness="0" Background="Transparent" Padding="0" />
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsFromReporter}" Value="True">
+                                        <Setter TargetName="Bubble" Property="HorizontalAlignment" Value="Right" />
+                                        <Setter TargetName="Bubble" Property="Background" Value="{DynamicResource NevaBridge.ReporterBubbleBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Margin="0,6" Foreground="#666" FontStyle="Italic" Text="{Binding BusyText}"
+                               Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhenTrue}}" />
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Report draft -->
+            <Expander Grid.Row="4" Margin="12,6,12,0" Header="Report so far" IsExpanded="False"
+                      Visibility="{Binding HasReport, Converter={StaticResource VisibleWhenTrue}}">
+                <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl ItemsSource="{Binding ReportFields}" Margin="0,4">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type local:ReportField}">
+                                <StackPanel Margin="0,3">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                    <TextBlock Text="{Binding Value}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Expander>
+
+            <!-- Outcome -->
+            <Border Grid.Row="5" Margin="12,8,12,0" Padding="10,6" CornerRadius="4"
+                    Background="{DynamicResource NevaBridge.SuccessBrush}">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding OutcomeText}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <TextBox Text="{Binding OutcomeText, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                         BorderThickness="0" Background="Transparent" />
+            </Border>
+
+            <!-- Composer -->
+            <Grid Grid.Row="6" Margin="12,10,12,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="DraftBox" Grid.Column="0" MinHeight="54" MaxHeight="140" Padding="4"
+                         AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                         Text="{Binding Draft, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="Ctrl+Enter sends the message"
+                         PreviewKeyDown="OnDraftPreviewKeyDown" />
+                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+                    <Button Content="Send" Style="{StaticResource NevaBridge.PrimaryButton}" Command="{Binding SendCommand}" />
+                    <Button Content="Submit report" Margin="0,6,0,0" Padding="10,6" Command="{Binding SubmitCommand}"
+                            ToolTip="Send the report to the support team now" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

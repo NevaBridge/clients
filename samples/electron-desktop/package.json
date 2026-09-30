@@ -1,0 +1,24 @@
+{
+  "name": "nevabridge-electron-example",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Example: the NevaBridge web chat in an Electron application",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build:packages": "bun run --cwd ../../sdk/typescript build && bun run --cwd ../../widgets/electron build",
+    "build": "rm -rf dist && mkdir -p dist && cp -R renderer dist/renderer && cp ../../widgets/webview-chat/nevabridge-mark.svg dist/renderer/ && esbuild src/main.ts --bundle --platform=node --target=node22 --format=cjs --external:electron --external:@nevabridge/electron --outfile=dist/main.cjs && esbuild src/app-preload.ts --bundle --platform=node --target=node22 --format=cjs --external:electron --outfile=dist/app-preload.cjs",
+    "start": "bun run build:packages && bun run build && bun scripts/launch.ts",
+    "typecheck": "tsc --noEmit",
+    "format:check": "prettier --check src renderer scripts README.md package.json tsconfig.json"
+  },
+  "dependencies": {
+    "@nevabridge/electron": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.11",
+    "electron": "^44.5.1",
+    "esbuild": "^0.27.3",
+    "prettier": "^3.4.2",
+    "typescript": "^7.0.2"
+  }
+}

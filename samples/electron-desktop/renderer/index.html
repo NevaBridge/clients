@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'"
+    />
+    <title>Contoso Billing (NevaBridge Electron example)</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <!-- A stand-in for your application's own screens. -->
+    <header>
+      <h1>Invoices</h1>
+      <button
+        id="open-chat"
+        class="logo-button"
+        type="button"
+        title="NevaBridge"
+        aria-label="NevaBridge support chat"
+      >
+        <img src="nevabridge-mark.svg" alt="" width="22" height="22" />
+      </button>
+    </header>
+    <table>
+      <thead>
+        <tr>
+          <th>Number</th>
+          <th>Customer</th>
+          <th>Due</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>INV-1041</td>
+          <td>Northwind Traders</td>
+          <td>2026-10-14</td>
+          <td>$1,280.00</td>
+        </tr>
+        <tr>
+          <td>INV-1042</td>
+          <td>Fabrikam</td>
+          <td>2026-10-21</td>
+          <td>$342.50</td>
+        </tr>
+        <tr>
+          <td>INV-1043</td>
+          <td>Adventure Works</td>
+          <td>2026-10-30</td>
+          <td>$9,120.00</td>
+        </tr>
+      </tbody>
+    </table>
+    <script src="index.js"></script>
+  </body>
+</html>

@@ -3,7 +3,9 @@
   "private": true,
   "packageManager": "bun@1.3.11",
   "workspaces": [
-    "sdk/typescript"
+    "sdk/typescript",
+    "widgets/electron",
+    "samples/electron-desktop"
   ],
   "scripts": {
     "contract:verify": "bun scripts/verify-contract-pin.ts",
@@ -11,11 +13,16 @@
     "sdk:check": "bun run --filter @nevabridge/sdk check",
     "test": "bun test ./tests",
     "format:check": "prettier --check scripts tests package.json .prettierrc.json contracts/pin.json",
-    "check": "bun run contract:verify && bun run format:check && bun run test && bun run sdk:check"
+    "check": "bun run contract:verify && bun run format:check && bun run test && bun run sdk:check && bun run widgets:check && bun run samples:check",
+    "widgets:check": "bun run --filter @nevabridge/electron check",
+    "samples:check": "bun run --cwd samples/electron-desktop typecheck && bun run --cwd samples/electron-desktop format:check"
   },
   "devDependencies": {
     "@types/bun": "^1.3.11",
     "prettier": "^3.4.2",
     "typescript": "^7.0.2"
-  }
+  },
+  "trustedDependencies": [
+    "electron"
+  ]
 }

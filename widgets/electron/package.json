@@ -1,0 +1,56 @@
+{
+  "name": "@nevabridge/electron",
+  "version": "0.1.0",
+  "description": "Embed the NevaBridge web chat in an Electron application",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "types": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/index.cjs"
+    },
+    "./preload": "./dist/preload.cjs"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NevaBridge/clients.git",
+    "directory": "widgets/electron"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "bun run clean && bun run build:page && bun run build:main && bun run build:preload && bun run build:types",
+    "build:page": "mkdir -p dist/webview-chat && cp ../webview-chat/index.html ../webview-chat/chat.css ../webview-chat/chat.js ../webview-chat/nevabridge-mark.svg dist/webview-chat/",
+    "build:main": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --external:electron --outfile=dist/index.cjs",
+    "build:preload": "esbuild src/preload.ts --bundle --platform=node --target=node22 --format=cjs --external:electron --outfile=dist/preload.cjs",
+    "build:types": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "format:check": "prettier --check src tests README.md package.json tsconfig.json tsconfig.build.json",
+    "check": "bun run format:check && bun run typecheck && bun run test && bun run build"
+  },
+  "dependencies": {
+    "@nevabridge/sdk": "workspace:*"
+  },
+  "peerDependencies": {
+    "electron": ">=32"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.11",
+    "electron": "^44.5.1",
+    "esbuild": "^0.27.3",
+    "prettier": "^3.4.2",
+    "typescript": "^7.0.2"
+  }
+}
