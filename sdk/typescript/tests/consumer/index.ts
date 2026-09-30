@@ -1,6 +1,8 @@
 import type {
   ConversationDetail,
   ConversationStatusValue,
+  EdgeError,
+  ModelInvocationError,
   ReportStatusValue,
   StartConversationOptions,
 } from "@nevabridge/sdk";
@@ -29,3 +31,18 @@ const futureAudience: StartConversationOptions = {
 };
 
 void futureAudience;
+
+// A provider or pipeline step the service adds later must not break a consumer
+// that reads model failure details.
+const futureModelFailure: Pick<ModelInvocationError, "provider" | "role"> = {
+  provider: "future_provider",
+  role: "future_role",
+};
+
+void futureModelFailure;
+
+// 502 and 504 bodies come from the API gateway, not from NevaBridge. Consumers
+// need the type to tell them apart from NevaBridge errors, which carry `error`.
+const gatewayTimeout: EdgeError = {message: "Endpoint request timed out"};
+
+void gatewayTimeout;

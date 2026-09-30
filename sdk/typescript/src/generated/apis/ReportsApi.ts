@@ -19,6 +19,11 @@ import {
     ApiErrorToJSON,
 } from '../models/ApiError.js';
 import {
+    type EdgeError,
+    EdgeErrorFromJSON,
+    EdgeErrorToJSON,
+} from '../models/EdgeError.js';
+import {
     type ModelInvocationError,
     ModelInvocationErrorFromJSON,
     ModelInvocationErrorToJSON,

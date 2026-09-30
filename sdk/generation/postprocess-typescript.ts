@@ -18,7 +18,11 @@ const openEnumTargets: readonly OpenEnumTarget[] = [
   {file: "models/MessageRole.ts", names: ["MessageRole"]},
   {
     file: "models/ModelInvocationError.ts",
-    names: ["ModelInvocationErrorCategoryEnum"],
+    names: [
+      "ModelInvocationErrorCategoryEnum",
+      "ModelInvocationErrorProviderEnum",
+      "ModelInvocationErrorRoleEnum",
+    ],
   },
   {
     file: "models/Report.ts",

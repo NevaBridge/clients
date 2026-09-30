@@ -14,6 +14,7 @@ export * from './ConversationStatus.js';
 export * from './ConversationSummary.js';
 export * from './ConversationTurn.js';
 export * from './DeliveryStatus.js';
+export * from './EdgeError.js';
 export * from './IntakeCategory.js';
 export * from './Message.js';
 export * from './MessageRole.js';

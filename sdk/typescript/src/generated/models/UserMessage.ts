@@ -34,11 +34,17 @@ export interface UserMessage {
      */
     content: string;
     /**
-     *
+     * Selects the writer at creation. Later messages may repeat the pinned key but cannot change it (400). Historical unpinned conversations retain per-message overrides.
      * @type {WriterModelKey}
      * @memberof UserMessage
      */
     writerModelKey?: WriterModelKey | null;
+    /**
+     * Optional BCP 47 response language for this turn. A valid tag takes precedence over automatic detection. An invalid tag is ignored.
+     * @type {string}
+     * @memberof UserMessage
+     */
+    responseLanguage?: string;
 }
 
 
@@ -63,6 +69,7 @@ export function UserMessageFromJSONTyped(json: any, ignoreDiscriminator: boolean
 
         'content': json['content'],
         'writerModelKey': json['writerModelKey'] === undefined ? undefined : json['writerModelKey'] === null ? null : WriterModelKeyFromJSON(json['writerModelKey']),
+        'responseLanguage': json['responseLanguage'] == null ? undefined : json['responseLanguage'],
     };
 }
 
@@ -79,5 +86,6 @@ export function UserMessageToJSONTyped(value?: UserMessage | null, ignoreDiscrim
 
         'content': value['content'],
         'writerModelKey': WriterModelKeyToJSON(value['writerModelKey']),
+        'responseLanguage': value['responseLanguage'],
     };
 }

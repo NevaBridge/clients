@@ -48,7 +48,27 @@ await client.appendMessage({
 });
 ```
 
-Every method accepts `signal: AbortSignal` for cancellation. When the API returns an error status, the method throws `NevaBridgeApiError`. The error has `status`, `headers`, and `detail`. `detail` is the parsed body when the response declares JSON and the body parses. Otherwise it is the body text, or `null` when the body is empty.
+Set `writerModelKey` on the first message to choose the model that writes the report. The conversation keeps that model for its whole life. A later message may repeat the same key, but a different key fails with status 400. Summaries and details return the key as `writerModelKey`. Conversations created before the model was fixed per conversation have no key.
+
+Set `responseLanguage` to a BCP 47 tag, such as `de-DE`, to choose the language of the reply for one turn. A valid tag overrides automatic language detection, and the API ignores an invalid one.
+
+Every method accepts `signal: AbortSignal` for cancellation.
+
+## Errors
+
+When the API returns an error status, the method throws `NevaBridgeApiError`. The error has `status`, `headers`, and `detail`. `detail` is the parsed body when the response declares JSON and the body parses. Otherwise it is the body text, or `null` when the body is empty.
+
+NevaBridge error bodies have an `error` field that names the error. When a model fails, the body is a `ModelInvocationError`. Its `category`, `provider`, `role`, and `catalogKey` say which model failed, at which step, and why. These statuses report model and dependency failures:
+
+| Status | Meaning                                                                                                                                                                                                                       |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 408    | The model timed out.                                                                                                                                                                                                          |
+| 409    | The model is permanently unavailable (`access-denied` or `model-retired`), or another caller is submitting the report.                                                                                                        |
+| 422    | The model provider rejected the request (`request-rejected`), or NevaBridge found a configuration fault it cannot resolve (`ConfigurationError`).                                                                             |
+| 424    | A service NevaBridge depends on failed. For a model, the category is `transient-unavailable`, `output-unparseable`, or `unknown`, and the request can be retried. Any other dependency failure is a `FailedDependency` error. |
+| 429    | The model provider throttled the request.                                                                                                                                                                                     |
+
+Statuses 502 and 504 come from the API gateway, not from NevaBridge. Their body is an `EdgeError`, which has a `message` and no `error` field. A 502 usually means the request ran past the gateway's 29-second limit.
 
 ## Submit behavior
 

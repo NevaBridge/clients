@@ -44,6 +44,12 @@ import {
  */
 export interface ConversationDetail {
     /**
+     * Immutable writer catalog key chosen at creation; absent on historical conversations.
+     * @type {string}
+     * @memberof ConversationDetail
+     */
+    writerModelKey?: string;
+    /**
      * A NevaBridge conversation id.
      * @type {string}
      * @memberof ConversationDetail
@@ -161,6 +167,7 @@ export function ConversationDetailFromJSONTyped(json: any, ignoreDiscriminator: 
     }
     return {
 
+        'writerModelKey': json['writerModelKey'] == null ? undefined : json['writerModelKey'],
         'id': json['id'],
         'tenantId': json['tenantId'],
         'productId': json['productId'],
@@ -189,6 +196,7 @@ export function ConversationDetailToJSONTyped(value?: ConversationDetail | null,
 
     return {
 
+        'writerModelKey': value['writerModelKey'],
         'id': value['id'],
         'tenantId': value['tenantId'],
         'productId': value['productId'],

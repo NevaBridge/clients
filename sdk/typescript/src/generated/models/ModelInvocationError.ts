@@ -37,6 +37,24 @@ export interface ModelInvocationError {
      * @memberof ModelInvocationError
      */
     category: ModelInvocationErrorCategoryEnum;
+    /**
+     * The service that ran the failing model.
+     * @type {ModelInvocationErrorProviderEnum}
+     * @memberof ModelInvocationError
+     */
+    provider: ModelInvocationErrorProviderEnum;
+    /**
+     * The step of the turn the failing model served.
+     * @type {ModelInvocationErrorRoleEnum}
+     * @memberof ModelInvocationError
+     */
+    role: ModelInvocationErrorRoleEnum;
+    /**
+     * The model catalog key of the failing model.
+     * @type {string}
+     * @memberof ModelInvocationError
+     */
+    catalogKey: string;
 }
 
 
@@ -63,6 +81,26 @@ export const ModelInvocationErrorCategoryEnum = {
 } as const;
 export type ModelInvocationErrorCategoryEnum = (typeof ModelInvocationErrorCategoryEnum)[keyof typeof ModelInvocationErrorCategoryEnum] | (string & {});
 
+/**
+ * @export
+ */
+export const ModelInvocationErrorProviderEnum = {
+    Bedrock: 'bedrock',
+    Openrouter: 'openrouter'
+} as const;
+export type ModelInvocationErrorProviderEnum = (typeof ModelInvocationErrorProviderEnum)[keyof typeof ModelInvocationErrorProviderEnum] | (string & {});
+
+/**
+ * @export
+ */
+export const ModelInvocationErrorRoleEnum = {
+    Classifier: 'classifier',
+    Orchestrator: 'orchestrator',
+    Writer: 'writer',
+    Finalizer: 'finalizer'
+} as const;
+export type ModelInvocationErrorRoleEnum = (typeof ModelInvocationErrorRoleEnum)[keyof typeof ModelInvocationErrorRoleEnum] | (string & {});
+
 
 /**
  * Check if a given object implements the ModelInvocationError interface.
@@ -73,6 +111,9 @@ export function instanceOfModelInvocationError(value: object): value is ModelInv
 
     if (!('message' in value) || value['message'] === undefined) return false;
     if (!('category' in value) || value['category'] === undefined) return false;
+    if (!('provider' in value) || value['provider'] === undefined) return false;
+    if (!('role' in value) || value['role'] === undefined) return false;
+    if (!('catalogKey' in value) || value['catalogKey'] === undefined) return false;
     return true;
 }
 
@@ -89,6 +130,9 @@ export function ModelInvocationErrorFromJSONTyped(json: any, ignoreDiscriminator
         'error': json['error'],
         'message': json['message'],
         'category': json['category'],
+        'provider': json['provider'],
+        'role': json['role'],
+        'catalogKey': json['catalogKey'],
     };
 }
 
@@ -106,5 +150,8 @@ export function ModelInvocationErrorToJSONTyped(value?: ModelInvocationError | n
         'error': value['error'],
         'message': value['message'],
         'category': value['category'],
+        'provider': value['provider'],
+        'role': value['role'],
+        'catalogKey': value['catalogKey'],
     };
 }

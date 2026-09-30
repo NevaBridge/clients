@@ -13,6 +13,7 @@ export type {ConnectorDeliveryResult} from "./generated/models/ConnectorDelivery
 export type {ConversationDetail} from "./generated/models/ConversationDetail.js";
 export type {ConversationSummary} from "./generated/models/ConversationSummary.js";
 export type {ConversationTurn} from "./generated/models/ConversationTurn.js";
+export type {EdgeError} from "./generated/models/EdgeError.js";
 export type {Message} from "./generated/models/Message.js";
 export type {NevaBridgeError} from "./generated/models/NevaBridgeError.js";
 export type {ModelInvocationError} from "./generated/models/ModelInvocationError.js";

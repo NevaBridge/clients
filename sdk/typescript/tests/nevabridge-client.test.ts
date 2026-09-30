@@ -212,6 +212,106 @@ describe("NevaBridgeClient", () => {
     }
   });
 
+  it("sends the response language and writer model on start and append", async () => {
+    const bodies: unknown[] = [];
+    const server = Bun.serve({
+      port: 0,
+      async fetch(request): Promise<Response> {
+        bodies.push(await request.clone().json());
+        return responseFor(request);
+      },
+    });
+    const client = new NevaBridgeClient({
+      baseUrl: server.url.toString(),
+      tokenProvider: async () => "token-1",
+    });
+
+    try {
+      await client.startConversation({
+        productId: "product-1",
+        actorId: "reporter-1",
+        request: {
+          userMessage: {
+            content: "Die Seite bleibt leer.",
+            writerModelKey: "claude-sonnet-5",
+            responseLanguage: "de-DE",
+          },
+        },
+      });
+      await client.appendMessage({
+        conversationId: "conversation-1",
+        request: {
+          content: "Nach dem Klick auf Bezahlen.",
+          writerModelKey: "claude-sonnet-5",
+          responseLanguage: "de-DE",
+        },
+      });
+      expect(bodies).toEqual([
+        {
+          userMessage: {
+            content: "Die Seite bleibt leer.",
+            writerModelKey: "claude-sonnet-5",
+            responseLanguage: "de-DE",
+          },
+        },
+        {
+          content: "Nach dem Klick auf Bezahlen.",
+          writerModelKey: "claude-sonnet-5",
+          responseLanguage: "de-DE",
+        },
+      ]);
+    } finally {
+      await server.stop(true);
+    }
+  });
+
+  it("returns the writer model chosen at creation on summaries and details", async () => {
+    const conversation = {
+      id: "conversation-1",
+      tenantId: "tenant-1",
+      productId: "product-1",
+      reporterId: "reporter-1",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      status: "in_progress",
+      writerModelKey: "openrouter-anthropic-claude-opus-5-5",
+    };
+    const server = Bun.serve({
+      port: 0,
+      fetch(request): Response {
+        if (new URL(request.url).pathname.startsWith("/v1/products/")) {
+          return Response.json([conversation]);
+        }
+        return Response.json({
+          ...conversation,
+          reports: [report()],
+          messages: [message("user")],
+        });
+      },
+    });
+    const client = new NevaBridgeClient({
+      baseUrl: server.url.toString(),
+      tokenProvider: () => "token",
+    });
+
+    try {
+      const [summary] = await client.listConversations({
+        productId: "product-1",
+      });
+      const detail = await client.getConversation({
+        conversationId: "conversation-1",
+      });
+      expect(summary?.writerModelKey).toBe(
+        "openrouter-anthropic-claude-opus-5-5",
+      );
+      expect(detail.writerModelKey).toBe(
+        "openrouter-anthropic-claude-opus-5-5",
+      );
+    } finally {
+      server.stop(true);
+    }
+  });
+
   it("preserves unknown enum wire values without throwing", async () => {
     const server = Bun.serve({
       port: 0,

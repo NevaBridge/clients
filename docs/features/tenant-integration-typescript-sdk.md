@@ -31,6 +31,9 @@ The base URL selects a non-production endpoint.
 Each operation accepts an `AbortSignal`. Cancelling it throws the platform's `AbortError`.
 When the API returns an error status, the operation throws `NevaBridgeApiError` with the HTTP status, the response headers, and the body as `detail`.
 `detail` is parsed JSON when the response declares JSON and the body parses, and plain text otherwise.
+A failed model call returns 408, 409, 422, 424 or 429 with a `ModelInvocationError` that names the failure category, the provider, the pipeline step and the model's catalog key.
+Statuses 502 and 504 come from the API gateway with an `EdgeError` body, which has no `error` field.
+The [SDK README](../../sdk/typescript/README.md#errors) explains each status.
 
 ## Audience roles
 
@@ -38,6 +41,13 @@ When the API returns an error status, the operation throws `NevaBridgeApiError` 
 The audience of a conversation cannot change after it starts, so later methods never send the header.
 Callers send every role that applies, because each role is a separate grant.
 An authenticated customer who may also use public knowledge sends `anonymous` and `customer`.
+
+## Writer model and response language
+
+The first message may set `writerModelKey` to choose the model that writes the report.
+The conversation keeps that model, and a later message that names a different one fails with status 400.
+Summaries and details return the chosen `writerModelKey`. Conversations created before the model was fixed per conversation have none.
+Each message may set `responseLanguage` to a BCP 47 tag. A valid tag overrides automatic language detection for that turn, and the API ignores an invalid one.
 
 ## Types and compatibility
 

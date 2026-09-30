@@ -26,7 +26,17 @@ export const WriterModelKey = {
     AmazonNovaPro: 'amazon-nova-pro',
     ClaudeSonnet46: 'claude-sonnet-4-6',
     ClaudeSonnet5: 'claude-sonnet-5',
-    AmazonNova2Lite: 'amazon-nova-2-lite'
+    AmazonNova2Lite: 'amazon-nova-2-lite',
+    OpenrouterOpenaiGpt56Luna: 'openrouter-openai-gpt-5-6-luna',
+    OpenrouterOpenaiGpt6Luna: 'openrouter-openai-gpt-6-luna',
+    OpenrouterOpenaiGpt56Terra: 'openrouter-openai-gpt-5-6-terra',
+    OpenrouterOpenaiGpt6Sol: 'openrouter-openai-gpt-6-sol',
+    OpenrouterAnthropicClaudeOpus5: 'openrouter-anthropic-claude-opus-5',
+    OpenrouterAnthropicClaudeOpus55: 'openrouter-anthropic-claude-opus-5-5',
+    OpenrouterGoogleGemini3Flash: 'openrouter-google-gemini-3-flash',
+    OpenrouterMetaMuseSpark13: 'openrouter-meta-muse-spark-1-3',
+    OpenrouterZAiGlm53Flash: 'openrouter-z-ai-glm-5-3-flash',
+    OpenrouterMoonshotaiKimiK3: 'openrouter-moonshotai-kimi-k3'
 } as const;
 export type WriterModelKey = (typeof WriterModelKey)[keyof typeof WriterModelKey] | (string & {});
 
