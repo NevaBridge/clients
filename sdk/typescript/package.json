@@ -1,6 +1,6 @@
 {
   "name": "@nevabridge/sdk",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "nevabridgeContractVersion": "1.0.0",
   "description": "Official TypeScript client for the NevaBridge Tenant Integration API",
   "license": "MIT",
@@ -34,6 +34,7 @@
   "sideEffects": false,
   "files": [
     "dist",
+    "CHANGELOG.md",
     "LICENSE",
     "README.md"
   ],
@@ -49,7 +50,7 @@
     "typecheck:consumer": "tsc -p tests/consumer/tsconfig.json",
     "typecheck:consumer:commonjs": "bash scripts/verify-commonjs-consumer.sh",
     "test": "bun test",
-    "format:check": "prettier --check src/nevabridge-client.ts src/index.ts tests examples scripts README.md package.json tsconfig.json tsconfig.examples.json",
+    "format:check": "prettier --check src/nevabridge-client.ts src/intake-turn-events.ts src/index.ts CHANGELOG.md tests examples scripts README.md package.json tsconfig.json tsconfig.examples.json",
     "generate": "../generation/generate-typescript.sh",
     "generate:check": "bun run generate && bash scripts/check-generated-clean.sh",
     "artifact:scan": "bash scripts/scan-package-artifacts.sh",

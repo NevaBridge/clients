@@ -4,6 +4,6 @@
   "hideGenerationTimestamp": true,
   "importFileExtension": ".js",
   "npmName": "@nevabridge/sdk",
-  "npmVersion": "0.0.1",
+  "npmVersion": "0.1.0",
   "supportsES6": true
 }

@@ -17,20 +17,12 @@ const openEnumTargets: readonly OpenEnumTarget[] = [
   {file: "models/DeliveryStatus.ts", names: ["DeliveryStatus"]},
   {file: "models/IntakeCategory.ts", names: ["IntakeCategory"]},
   {file: "models/MessageRole.ts", names: ["MessageRole"]},
-  {
-    file: "models/ModelInvocationError.ts",
-    names: [
-      "ModelInvocationErrorCategoryEnum",
-      "ModelInvocationErrorProviderEnum",
-      "ModelInvocationErrorRoleEnum",
-    ],
-  },
-  {
-    file: "models/Report.ts",
-    names: ["ReportStatusReasonEnum", "ReportSubmissionOriginEnum"],
-  },
+  {file: "models/ModelFailureCategory.ts", names: ["ModelFailureCategory"]},
+  {file: "models/ModelInvocationRole.ts", names: ["ModelInvocationRole"]},
+  {file: "models/ModelProvider.ts", names: ["ModelProvider"]},
+  {file: "models/Report.ts", names: ["ReportSubmissionOriginEnum"]},
   {file: "models/ReportStatus.ts", names: ["ReportStatus"]},
-  {file: "models/WriterModelKey.ts", names: ["WriterModelKey"]},
+  {file: "models/ReportStatusReason.ts", names: ["ReportStatusReason"]},
 ];
 
 for (const target of openEnumTargets) {

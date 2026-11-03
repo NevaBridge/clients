@@ -54,6 +54,68 @@ Set `responseLanguage` to a BCP 47 tag, such as `de-DE`, to choose the language 
 
 Every method accepts `signal: AbortSignal` for cancellation.
 
+## Run a Generic Intake conversation
+
+Generic Intake needs the Generic Intake feature, which NevaBridge enables per tenant. Without it, `startIntakeConversation` fails with status 403. `getFeatures` tells you which features your tenant has.
+
+In Generic Intake the assistant works out what the reporter needs and files one report per finding when the conversation ends. A turn does not run inside the request that sends the message. The request answers at once with a turn id, the turn runs in the background, and you follow it until it ends:
+
+```typescript
+const {conversationId, turnId} = await client.startIntakeConversation({
+  productId: "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+  actorId: "user-4821",
+  actorName: "Dana",
+  request: {
+    userMessage: {content: "The checkout page is blank after I click Pay."},
+    reporterContact: {email: "dana@example.com"},
+  },
+});
+
+let preview = "";
+const {revision} = await client.waitForIntakeTurn({
+  turnId,
+  onEvent: (event) => {
+    if (event.type === "status") {
+      showProgress(event.phase);
+    } else if (event.type === "text") {
+      preview += event.delta;
+      showPreview(preview);
+    }
+  },
+});
+
+const conversation = await client.getConversation({conversationId});
+```
+
+- `waitForIntakeTurn` polls `getIntakeTurnEvents` until the turn ends and calls `onEvent` for every event in order. `status` events say what the assistant is doing; its phases and tools grow over time, so show one you do not know as work in progress. `text` events carry the reply as it is written. An event type this SDK version does not know arrives as `type: "unknown"`, with the API's type in `eventType` and the event in `payload`; ignore it.
+- The `text` events are only a preview. Once the turn is done, read the conversation with `getConversation`: it holds the reply as saved.
+- When a turn fails, `waitForIntakeTurn` throws `NevaBridgeApiError` with the status the failure would have had as a response, such as 408 `IntakeTurnTimedOut` or 402 `QuotaExceeded`, and the failure as `detail`. A failed turn changed nothing.
+- A poll that fails with a network error or a gateway 502 or 504 is retried up to three times. Any other failure throws.
+- Each poll waits up to `wait` seconds for news, 20 by default. If your code runs behind a short request limit, such as a serverless function or a PHP proxy, set a smaller `wait`.
+
+The reporter's message appears in the conversation only once its turn has saved it, so show the sent message yourself while the turn runs.
+
+### Continue and finish
+
+Send each further message with `startIntakeTurn` and the `revision` the last turn returned, or the `revision` of the last `getConversation`:
+
+```typescript
+const next = await client.startIntakeTurn({
+  conversationId,
+  request: {
+    content: "It happens in Chrome and Safari.",
+    expectedRevision: revision,
+  },
+});
+await client.waitForIntakeTurn({turnId: next.turnId});
+```
+
+Set `finish: true` to end the conversation with the reporter's closing message. It files every report without asking the model again, and its turn ends at once. The assistant can also end the conversation on its own; `getConversation` then returns `status: "closed"`.
+
+One turn runs at a time. If you send while another turn of the conversation runs, `startIntakeTurn` fails with status 409, and `intakeTurnRunningId(error)` returns the running turn's id, so you can follow that turn instead. A message sent with a revision the conversation has moved past fails with 409 `RevisionConflict` and adds nothing. If you lost a response, send the same request again, or read `activeTurnId` from `getConversation` and follow that turn.
+
+`listIntakeConversations` lists a product's Generic Intake conversations a page at a time, newest first when you filter by `reporterId`. `listConversations` leaves them out, and `appendMessage` refuses them with status 400.
+
 ## Errors
 
 When the API returns an error status, the method throws `NevaBridgeApiError`. The error has `status`, `headers`, and `detail`. `detail` is the parsed body when the response declares JSON and the body parses. Otherwise it is the body text, or `null` when the body is empty.
@@ -144,5 +206,10 @@ Files can be added and deleted until the conversation's report is submitted. Aft
 - `confirmAttachmentUpload`
 - `requestAttachmentDownloadUrl`
 - `deleteAttachment`
+- `startIntakeConversation`
+- `startIntakeTurn`
+- `getIntakeTurnEvents`
+- `listIntakeConversations`
+- `getFeatures`
 
-The supported public contract includes only these operations.
+`waitForIntakeTurn` and `intakeTurnRunningId` build on these operations. The supported public contract includes only these operations.

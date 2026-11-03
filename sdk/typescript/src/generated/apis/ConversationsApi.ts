@@ -2,7 +2,7 @@
 /* eslint-disable */
 /**
  * NevaBridge Tenant Integration API
- * This contract covers the operations a tenant\'s trusted backend may call to run a NevaBridge reporting conversation, attach files to it, and finalize the report it produces.  **Supported surface.** Only the operations in this document are supported commitments. A NevaBridge API key is tenant-wide and the gateway does not restrict it to these paths, so other routes may answer a request; they are internal, may change without notice, and are not covered by any compatibility promise. Build against this document only.  **Trust boundary.** The caller is the tenant\'s backend, not a browser. The API key must never reach an end user\'s device. `X-Actor-Id` is a correlation value the tenant chooses and NevaBridge stores verbatim; it is not an authorization boundary, and NevaBridge does not check that a caller \"owns\" the actor it names. `X-Actor-Roles` is trusted audience context from that backend. Tenant isolation comes from the API key alone.  **Feature entitlements.** Some behavior depends on features NevaBridge enables per tenant. A system-wide setting can switch a feature on or off for every tenant; otherwise the tenant\'s own entitlement decides. NevaBridge staff manage both, so ask NevaBridge to enable a feature. Each affected operation names its feature in its description and in `x-nevabridge-entitlements`:  - `chatAttachments`: every Attachments operation. Without it they answer 403   `Forbidden`, whose message names the feature. With it, a report delivered   to a tracker while its conversation holds uploaded files also carries an   attachment count and a link to the files in NevaBridge. Revoking the   entitlement keeps the files; granting it again makes them reachable again. - `knowledgebase`: `startConversation` and `appendMessage`. With it, and once   the tenant\'s knowledge base is ready, the assistant grounds its replies in   the tenant\'s documents that the conversation\'s `X-Actor-Roles` may read.   Without it, turns run the same way with no document retrieval and no   error, and `X-Actor-Roles` has no effect. - `genericIntake`: no operation here starts a Generic Intake conversation. A   tenant that uses Generic Intake in the NevaBridge app should know that   `listConversations` leaves those conversations out, and `getConversation`   and `appendMessage` refuse them with 400. The Attachments operations   accept them.  Every other behavior in this document is the same for all tenants.
+ * This contract covers the operations a tenant\'s trusted backend may call to run a NevaBridge reporting conversation, attach files to it, and finalize the report it produces.  **Supported surface.** Only the operations in this document are supported commitments. A NevaBridge API key is tenant-wide and the gateway does not restrict it to these paths, so other routes may answer a request; they are internal, may change without notice, and are not covered by any compatibility promise. Build against this document only.  **Trust boundary.** The caller is the tenant\'s backend, not a browser. The API key must never reach an end user\'s device. `X-Actor-Id` is a correlation value the tenant chooses and NevaBridge stores verbatim; it is not an authorization boundary, and NevaBridge does not check that a caller \"owns\" the actor it names. `X-Actor-Roles` is trusted audience context from that backend. Tenant isolation comes from the API key alone.  **Feature entitlements.** Some behavior depends on features NevaBridge enables per tenant. A system-wide setting can switch a feature on or off for every tenant; otherwise the tenant\'s own entitlement decides. NevaBridge staff manage both, so ask NevaBridge to enable a feature. Each affected operation names its feature in its description and in `x-nevabridge-entitlements`:  - `chatAttachments`: every Attachments operation. Without it they answer 403   `Forbidden`, whose message names the feature. With it, a report delivered   to a tracker while its conversation holds uploaded files also carries an   attachment count and a link to the files in NevaBridge. Revoking the   entitlement keeps the files; granting it again makes them reachable again. - `knowledgebase`: `startConversation` and `appendMessage`. With it, and once   the tenant\'s knowledge base is ready, the assistant grounds its replies in   the tenant\'s documents that the conversation\'s `X-Actor-Roles` may read.   Without it, turns run the same way with no document retrieval and no   error, and `X-Actor-Roles` has no effect. - `genericIntake`: `startIntakeConversation` starts a Generic Intake   conversation, in which the assistant works out what the reporter needs   and files one report per finding when the conversation ends. Without   the entitlement it answers 403 `Forbidden`. `startIntakeTurn` continues   and finishes those conversations, `getIntakeTurnEvents` follows a   running turn, `listIntakeConversations` lists the conversations and   `getConversation` reads them. `listConversations` leaves them out, and   `appendMessage` refuses them. The Attachments operations accept them.  **Generic Intake turns run in the background.** Starting a conversation or a turn answers 202 at once with a turn id; the assistant\'s reply is not in that response. Read the turn\'s progress and reply with `getIntakeTurnEvents` until its terminal event, then read the conversation with `getConversation`. Every request stays short, so no turn depends on a request\'s time limit. `getIntakeTurnEvents` describes the polling rules.  `getFeatures` reports which of these features the tenant has right now.  Every other behavior in this document is the same for all tenants.
  *
  * The version of the OpenAPI document: 1.0.0
  *
@@ -23,11 +23,6 @@ import {
     ApiErrorFromJSON,
     ApiErrorToJSON,
 } from '../models/ApiError.js';
-import {
-    type AppendMessageError,
-    AppendMessageErrorFromJSON,
-    AppendMessageErrorToJSON,
-} from '../models/AppendMessageError.js';
 import {
     type AppendMessageRequest,
     AppendMessageRequestFromJSON,
@@ -54,6 +49,26 @@ import {
     EdgeErrorToJSON,
 } from '../models/EdgeError.js';
 import {
+    type IntakeConversationList,
+    IntakeConversationListFromJSON,
+    IntakeConversationListToJSON,
+} from '../models/IntakeConversationList.js';
+import {
+    type IntakeConversationStarted,
+    IntakeConversationStartedFromJSON,
+    IntakeConversationStartedToJSON,
+} from '../models/IntakeConversationStarted.js';
+import {
+    type IntakeTurnEvents,
+    IntakeTurnEventsFromJSON,
+    IntakeTurnEventsToJSON,
+} from '../models/IntakeTurnEvents.js';
+import {
+    type IntakeTurnStarted,
+    IntakeTurnStartedFromJSON,
+    IntakeTurnStartedToJSON,
+} from '../models/IntakeTurnStarted.js';
+import {
     type ModelInvocationError,
     ModelInvocationErrorFromJSON,
     ModelInvocationErrorToJSON,
@@ -64,10 +79,30 @@ import {
     NevaBridgeErrorToJSON,
 } from '../models/NevaBridgeError.js';
 import {
+    type StartConversation409Response,
+    StartConversation409ResponseFromJSON,
+    StartConversation409ResponseToJSON,
+} from '../models/StartConversation409Response.js';
+import {
     type StartConversationRequest,
     StartConversationRequestFromJSON,
     StartConversationRequestToJSON,
 } from '../models/StartConversationRequest.js';
+import {
+    type StartIntakeConversationRequest,
+    StartIntakeConversationRequestFromJSON,
+    StartIntakeConversationRequestToJSON,
+} from '../models/StartIntakeConversationRequest.js';
+import {
+    type StartIntakeTurn409Response,
+    StartIntakeTurn409ResponseFromJSON,
+    StartIntakeTurn409ResponseToJSON,
+} from '../models/StartIntakeTurn409Response.js';
+import {
+    type StartIntakeTurnRequest,
+    StartIntakeTurnRequestFromJSON,
+    StartIntakeTurnRequestToJSON,
+} from '../models/StartIntakeTurnRequest.js';
 
 export interface AppendMessageOperationRequest {
     conversationId: string;
@@ -78,9 +113,23 @@ export interface GetConversationRequest {
     conversationId: string;
 }
 
+export interface GetIntakeTurnEventsRequest {
+    turnId: string;
+    after?: string;
+    wait?: number;
+    linger?: number;
+}
+
 export interface ListConversationsRequest {
     productId: string;
     reporterId?: string;
+}
+
+export interface ListIntakeConversationsRequest {
+    productId: string;
+    reporterId?: string;
+    limit?: number;
+    cursor?: string;
 }
 
 export interface StartConversationOperationRequest {
@@ -89,6 +138,19 @@ export interface StartConversationOperationRequest {
     startConversationRequest: StartConversationRequest;
     xActorName?: string;
     xActorRoles?: Array<ActorRole>;
+}
+
+export interface StartIntakeConversationOperationRequest {
+    productId: string;
+    xActorId: string;
+    startIntakeConversationRequest: StartIntakeConversationRequest;
+    xActorName?: string;
+    xActorRoles?: Array<ActorRole>;
+}
+
+export interface StartIntakeTurnOperationRequest {
+    conversationId: string;
+    startIntakeTurnRequest: StartIntakeTurnRequest;
 }
 
 /**
@@ -142,7 +204,7 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Posts the reporter\'s next message and returns the assistant\'s reply along with the conversation\'s complete report array. The array is never a delta, so a live UI can redraw from this response without a follow-up read.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is neither required nor read here.  With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startConversation`. A Generic Intake conversation (see the `genericIntake` entitlement) answers 400.
+     * Posts the reporter\'s next message and returns the assistant\'s reply along with the conversation\'s complete report array. The array is never a delta, so a live UI can redraw from this response without a follow-up read.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is neither required nor read here.  With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startConversation`.  A Generic Intake conversation answers 400 and adds nothing: its turns run in the background through `startIntakeTurn`, which the message names.
      * Append a turn
      */
     async appendMessageRaw(requestParameters: AppendMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ConversationTurn>> {
@@ -153,7 +215,7 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Posts the reporter\'s next message and returns the assistant\'s reply along with the conversation\'s complete report array. The array is never a delta, so a live UI can redraw from this response without a follow-up read.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is neither required nor read here.  With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startConversation`. A Generic Intake conversation (see the `genericIntake` entitlement) answers 400.
+     * Posts the reporter\'s next message and returns the assistant\'s reply along with the conversation\'s complete report array. The array is never a delta, so a live UI can redraw from this response without a follow-up read.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is neither required nor read here.  With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startConversation`.  A Generic Intake conversation answers 400 and adds nothing: its turns run in the background through `startIntakeTurn`, which the message names.
      * Append a turn
      */
     async appendMessage(requestParameters: AppendMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ConversationTurn> {
@@ -197,7 +259,7 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Returns one conversation with its full message history and its current reports. Use it to render a transcript, and to poll for a report that a turn or the abandonment fallback has since finalized.  A Generic Intake conversation (see the `genericIntake` entitlement) answers 400.
+     * Returns one conversation with its full message history and its current reports. Use it to render a transcript, and to poll for a report that a turn or the abandonment fallback has since finalized.  A Generic Intake conversation (see the `genericIntake` entitlement) answers in the same shape. Its `status` is `closed` once the conversation has ended, its `reports` hold the reports filed so far, and `revision` is the value to send as `expectedRevision` with the next `startIntakeTurn`. While a turn runs, `activeTurnId` names it, and its message is not in `messages` yet: a client that lost track of a turn, for example after a reload, resumes reading its events with that id. The assistant\'s working drafts are not exposed. Reading needs no entitlement. `reporterId` is returned so the tenant\'s backend can apply its own rules about who may see a conversation; NevaBridge does not apply any. A conversation from the first Generic Intake version, which predates this API, answers 400.
      * Read a conversation
      */
     async getConversationRaw(requestParameters: GetConversationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ConversationDetail>> {
@@ -208,11 +270,78 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Returns one conversation with its full message history and its current reports. Use it to render a transcript, and to poll for a report that a turn or the abandonment fallback has since finalized.  A Generic Intake conversation (see the `genericIntake` entitlement) answers 400.
+     * Returns one conversation with its full message history and its current reports. Use it to render a transcript, and to poll for a report that a turn or the abandonment fallback has since finalized.  A Generic Intake conversation (see the `genericIntake` entitlement) answers in the same shape. Its `status` is `closed` once the conversation has ended, its `reports` hold the reports filed so far, and `revision` is the value to send as `expectedRevision` with the next `startIntakeTurn`. While a turn runs, `activeTurnId` names it, and its message is not in `messages` yet: a client that lost track of a turn, for example after a reload, resumes reading its events with that id. The assistant\'s working drafts are not exposed. Reading needs no entitlement. `reporterId` is returned so the tenant\'s backend can apply its own rules about who may see a conversation; NevaBridge does not apply any. A conversation from the first Generic Intake version, which predates this API, answers 400.
      * Read a conversation
      */
     async getConversation(requestParameters: GetConversationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ConversationDetail> {
         const response = await this.getConversationRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for getIntakeTurnEvents without sending the request
+     */
+    async getIntakeTurnEventsRequestOpts(requestParameters: GetIntakeTurnEventsRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['turnId'] == null) {
+            throw new runtime.RequiredError(
+                'turnId',
+                'Required parameter "turnId" was null or undefined when calling getIntakeTurnEvents().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        if (requestParameters['after'] != null) {
+            queryParameters['after'] = requestParameters['after'];
+        }
+
+        if (requestParameters['wait'] != null) {
+            queryParameters['wait'] = requestParameters['wait'];
+        }
+
+        if (requestParameters['linger'] != null) {
+            queryParameters['linger'] = requestParameters['linger'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/v1/intake-turns/{turnId}/events`;
+        urlPath = urlPath.replace('{turnId}', encodeURIComponent(String(requestParameters['turnId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Returns the events a Generic Intake turn has written after `after`, oldest first. A turn writes `status` events while the assistant works, `text` events with its reply as it is written, and ends in exactly one terminal event: `done` once its changes are saved, or `error` when they never will be. A turn that cannot finish within five minutes ends in `error` (`IntakeTurnTimedOut`) and changed nothing.  **Polling.** Send no `after` on the first read, then the previous response\'s `cursor` each time. The cursor is opaque; do not build or compare it. Across reads the events have no gaps and no repeats. - The read waits up to `wait` seconds (0 to 20, default 20) for a   first new event and answers with none when the wait runs out; read   again. - Once an event has arrived, it keeps collecting for `linger`   milliseconds (0 to 3000, default 500), so text arrives in a few   larger pieces. - The terminal event answers at once and always comes last. `finished` is true once it has been returned; read no further. A client that cannot hold a request open, such as a proxy with a short time limit, sends `wait=0` and reads again after a pause of its own.  **After `done`,** read the conversation with `getConversation`: it is authoritative, and the `text` events are only a preview of the reply. `done` carries the conversation\'s new `revision`. After `error`, the conversation is unchanged; the error body says why, with the status code the request would have had.  **Tolerance.** Ignore event types you do not know, and treat a `status` phase or tool you do not know as work in progress: both sets grow without a new API version.  Events stay readable for 24 hours. A turn is readable by any key of its tenant; another tenant\'s turn answers 400.
+     * Read a Generic Intake turn\'s events
+     */
+    async getIntakeTurnEventsRaw(requestParameters: GetIntakeTurnEventsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<IntakeTurnEvents>> {
+        const requestOptions = await this.getIntakeTurnEventsRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => IntakeTurnEventsFromJSON(jsonValue));
+    }
+
+    /**
+     * Returns the events a Generic Intake turn has written after `after`, oldest first. A turn writes `status` events while the assistant works, `text` events with its reply as it is written, and ends in exactly one terminal event: `done` once its changes are saved, or `error` when they never will be. A turn that cannot finish within five minutes ends in `error` (`IntakeTurnTimedOut`) and changed nothing.  **Polling.** Send no `after` on the first read, then the previous response\'s `cursor` each time. The cursor is opaque; do not build or compare it. Across reads the events have no gaps and no repeats. - The read waits up to `wait` seconds (0 to 20, default 20) for a   first new event and answers with none when the wait runs out; read   again. - Once an event has arrived, it keeps collecting for `linger`   milliseconds (0 to 3000, default 500), so text arrives in a few   larger pieces. - The terminal event answers at once and always comes last. `finished` is true once it has been returned; read no further. A client that cannot hold a request open, such as a proxy with a short time limit, sends `wait=0` and reads again after a pause of its own.  **After `done`,** read the conversation with `getConversation`: it is authoritative, and the `text` events are only a preview of the reply. `done` carries the conversation\'s new `revision`. After `error`, the conversation is unchanged; the error body says why, with the status code the request would have had.  **Tolerance.** Ignore event types you do not know, and treat a `status` phase or tool you do not know as work in progress: both sets grow without a new API version.  Events stay readable for 24 hours. A turn is readable by any key of its tenant; another tenant\'s turn answers 400.
+     * Read a Generic Intake turn\'s events
+     */
+    async getIntakeTurnEvents(requestParameters: GetIntakeTurnEventsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<IntakeTurnEvents> {
+        const response = await this.getIntakeTurnEventsRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -256,7 +385,7 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Lists the conversations NevaBridge holds for one product, ordered by `updatedAt` ascending, so the most recently active conversation comes last. Pass `reporterId` to narrow the list to a single reporter, which is how a tenant backend renders \"my reports\" for the signed-in user.  Summaries carry no messages. Read one conversation to get its transcript and reports.  Generic Intake conversations, which only tenants with the `genericIntake` entitlement create in the NevaBridge app, are not listed.
+     * Lists the conversations NevaBridge holds for one product, ordered by `updatedAt` ascending, so the most recently active conversation comes last. Pass `reporterId` to narrow the list to a single reporter, which is how a tenant backend renders \"my reports\" for the signed-in user.  Summaries carry no messages. Read one conversation to get its transcript and reports.  Generic Intake conversations are not listed here; use `listIntakeConversations`.
      * List a product\'s conversations
      */
     async listConversationsRaw(requestParameters: ListConversationsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Array<ConversationSummary>>> {
@@ -267,11 +396,78 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Lists the conversations NevaBridge holds for one product, ordered by `updatedAt` ascending, so the most recently active conversation comes last. Pass `reporterId` to narrow the list to a single reporter, which is how a tenant backend renders \"my reports\" for the signed-in user.  Summaries carry no messages. Read one conversation to get its transcript and reports.  Generic Intake conversations, which only tenants with the `genericIntake` entitlement create in the NevaBridge app, are not listed.
+     * Lists the conversations NevaBridge holds for one product, ordered by `updatedAt` ascending, so the most recently active conversation comes last. Pass `reporterId` to narrow the list to a single reporter, which is how a tenant backend renders \"my reports\" for the signed-in user.  Summaries carry no messages. Read one conversation to get its transcript and reports.  Generic Intake conversations are not listed here; use `listIntakeConversations`.
      * List a product\'s conversations
      */
     async listConversations(requestParameters: ListConversationsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Array<ConversationSummary>> {
         const response = await this.listConversationsRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for listIntakeConversations without sending the request
+     */
+    async listIntakeConversationsRequestOpts(requestParameters: ListIntakeConversationsRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['productId'] == null) {
+            throw new runtime.RequiredError(
+                'productId',
+                'Required parameter "productId" was null or undefined when calling listIntakeConversations().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        if (requestParameters['reporterId'] != null) {
+            queryParameters['reporterId'] = requestParameters['reporterId'];
+        }
+
+        if (requestParameters['limit'] != null) {
+            queryParameters['limit'] = requestParameters['limit'];
+        }
+
+        if (requestParameters['cursor'] != null) {
+            queryParameters['cursor'] = requestParameters['cursor'];
+        }
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/v1/products/{productId}/intake-conversations`;
+        urlPath = urlPath.replace('{productId}', encodeURIComponent(String(requestParameters['productId'])));
+
+        return {
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Lists one product\'s Generic Intake conversations, one page at a time. Pass `reporterId` to list a single reporter\'s conversations, newest first, which is how a tenant backend renders \"my conversations\" for the signed-in user. Without it, the list pages through all of the product\'s Generic Intake conversations in a stable order that is not chronological.  A page can hold fewer than `limit` conversations, even none, while more follow: only a response without `nextCursor` ends the list. To read the next page, send `nextCursor` back as `cursor` with the same `reporterId`.  A conversation started a moment ago can take a moment to appear in the list filtered by `reporterId`.  Summaries carry no messages. Read one conversation to get its transcript and reports. Listing needs no entitlement. Conversations from the first Generic Intake version, which predates this API, are not listed.
+     * List a product\'s Generic Intake conversations
+     */
+    async listIntakeConversationsRaw(requestParameters: ListIntakeConversationsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<IntakeConversationList>> {
+        const requestOptions = await this.listIntakeConversationsRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => IntakeConversationListFromJSON(jsonValue));
+    }
+
+    /**
+     * Lists one product\'s Generic Intake conversations, one page at a time. Pass `reporterId` to list a single reporter\'s conversations, newest first, which is how a tenant backend renders \"my conversations\" for the signed-in user. Without it, the list pages through all of the product\'s Generic Intake conversations in a stable order that is not chronological.  A page can hold fewer than `limit` conversations, even none, while more follow: only a response without `nextCursor` ends the list. To read the next page, send `nextCursor` back as `cursor` with the same `reporterId`.  A conversation started a moment ago can take a moment to appear in the list filtered by `reporterId`.  Summaries carry no messages. Read one conversation to get its transcript and reports. Listing needs no entitlement. Conversations from the first Generic Intake version, which predates this API, are not listed.
+     * List a product\'s Generic Intake conversations
+     */
+    async listIntakeConversations(requestParameters: ListIntakeConversationsRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<IntakeConversationList> {
+        const response = await this.listIntakeConversationsRaw(requestParameters, initOverrides);
         return await response.value();
     }
 
@@ -356,6 +552,155 @@ export class ConversationsApi extends runtime.BaseAPI {
      */
     async startConversation(requestParameters: StartConversationOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ConversationTurn> {
         const response = await this.startConversationRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for startIntakeConversation without sending the request
+     */
+    async startIntakeConversationRequestOpts(requestParameters: StartIntakeConversationOperationRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['productId'] == null) {
+            throw new runtime.RequiredError(
+                'productId',
+                'Required parameter "productId" was null or undefined when calling startIntakeConversation().'
+            );
+        }
+
+        if (requestParameters['xActorId'] == null) {
+            throw new runtime.RequiredError(
+                'xActorId',
+                'Required parameter "xActorId" was null or undefined when calling startIntakeConversation().'
+            );
+        }
+
+        if (requestParameters['startIntakeConversationRequest'] == null) {
+            throw new runtime.RequiredError(
+                'startIntakeConversationRequest',
+                'Required parameter "startIntakeConversationRequest" was null or undefined when calling startIntakeConversation().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (requestParameters['xActorId'] != null) {
+            headerParameters['X-Actor-Id'] = String(requestParameters['xActorId']);
+        }
+
+        if (requestParameters['xActorName'] != null) {
+            headerParameters['X-Actor-Name'] = String(requestParameters['xActorName']);
+        }
+
+        if (requestParameters['xActorRoles'] != null) {
+            headerParameters['X-Actor-Roles'] = requestParameters['xActorRoles']!.join(runtime.COLLECTION_FORMATS["csv"]);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/v1/products/{productId}/intake-conversations`;
+        urlPath = urlPath.replace('{productId}', encodeURIComponent(String(requestParameters['productId'])));
+
+        return {
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: StartIntakeConversationRequestToJSON(requestParameters['startIntakeConversationRequest']),
+        };
+    }
+
+    /**
+     * Starts a Generic Intake conversation for one product with its first user message. In Generic Intake the assistant works out what the reporter needs, answers from the tenant\'s knowledge where it can, and files one report per distinct finding when the conversation ends.  The call answers 202 with the new conversation\'s id and the id of its first turn, which runs in the background. Read the turn with `getIntakeTurnEvents` until it ends: after `done`, `getConversation` returns the first message, the assistant\'s reply and the conversation\'s `revision`. A first turn that ends in `error` changed nothing, and its conversation is deleted again; start a new one. Continue and finish the conversation with `startIntakeTurn`.  Requires the `genericIntake` entitlement; without it the call answers 403 `Forbidden`.  `X-Actor-Id` is required and becomes the conversation\'s `reporterId`, as in `startConversation`.  Send `reporterContact` when the tenant\'s application already knows how to reach the reporter. The assistant then does not ask for contact details, and every support request filed from the conversation carries them. This works with report templates that hold contact details in fields keyed `contactEmail` and `contactPhone`, as the default support template does.  With the `knowledgebase` entitlement, the assistant\'s replies may draw on the tenant\'s knowledge base, limited to the documents `X-Actor-Roles` grants.
+     * Start a Generic Intake conversation
+     */
+    async startIntakeConversationRaw(requestParameters: StartIntakeConversationOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<IntakeConversationStarted>> {
+        const requestOptions = await this.startIntakeConversationRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => IntakeConversationStartedFromJSON(jsonValue));
+    }
+
+    /**
+     * Starts a Generic Intake conversation for one product with its first user message. In Generic Intake the assistant works out what the reporter needs, answers from the tenant\'s knowledge where it can, and files one report per distinct finding when the conversation ends.  The call answers 202 with the new conversation\'s id and the id of its first turn, which runs in the background. Read the turn with `getIntakeTurnEvents` until it ends: after `done`, `getConversation` returns the first message, the assistant\'s reply and the conversation\'s `revision`. A first turn that ends in `error` changed nothing, and its conversation is deleted again; start a new one. Continue and finish the conversation with `startIntakeTurn`.  Requires the `genericIntake` entitlement; without it the call answers 403 `Forbidden`.  `X-Actor-Id` is required and becomes the conversation\'s `reporterId`, as in `startConversation`.  Send `reporterContact` when the tenant\'s application already knows how to reach the reporter. The assistant then does not ask for contact details, and every support request filed from the conversation carries them. This works with report templates that hold contact details in fields keyed `contactEmail` and `contactPhone`, as the default support template does.  With the `knowledgebase` entitlement, the assistant\'s replies may draw on the tenant\'s knowledge base, limited to the documents `X-Actor-Roles` grants.
+     * Start a Generic Intake conversation
+     */
+    async startIntakeConversation(requestParameters: StartIntakeConversationOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<IntakeConversationStarted> {
+        const response = await this.startIntakeConversationRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Creates request options for startIntakeTurn without sending the request
+     */
+    async startIntakeTurnRequestOpts(requestParameters: StartIntakeTurnOperationRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['conversationId'] == null) {
+            throw new runtime.RequiredError(
+                'conversationId',
+                'Required parameter "conversationId" was null or undefined when calling startIntakeTurn().'
+            );
+        }
+
+        if (requestParameters['startIntakeTurnRequest'] == null) {
+            throw new runtime.RequiredError(
+                'startIntakeTurnRequest',
+                'Required parameter "startIntakeTurnRequest" was null or undefined when calling startIntakeTurn().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/v1/intake-conversations/{conversationId}/turns`;
+        urlPath = urlPath.replace('{conversationId}', encodeURIComponent(String(requestParameters['conversationId'])));
+
+        return {
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: StartIntakeTurnRequestToJSON(requestParameters['startIntakeTurnRequest']),
+        };
+    }
+
+    /**
+     * Sends the reporter\'s next message in a Generic Intake conversation, or finishes the conversation. The call answers 202 with the turn\'s id; the turn runs in the background. Read it with `getIntakeTurnEvents` until it ends, then read the conversation with `getConversation`, whose `revision` is the `expectedRevision` of the next turn.  Send `finish: true` to end the conversation: every draft is filed without a model call, and `content` is stored as the reporter\'s closing message without being analyzed. A finishing turn has ended by the time the call answers, so its first `getIntakeTurnEvents` read returns `done` at once. Finishing needs no entitlement; any other turn requires `genericIntake` and answers 403 `Forbidden` without it. A Generic Intake conversation also finishes on its own when the assistant reads the reporter\'s message as an ending, or after 60 minutes without a turn.  **One turn at a time, and safe resends.** `expectedRevision` is the `revision` of the last read of the conversation, or of the last turn\'s `done` event. While another turn of the conversation runs, the call answers 409 `IntakeTurnRunning` with that turn\'s `turnId`: read its events instead of sending again. Once a turn has committed, a resend of the same message names a revision the conversation has moved past and answers 409 `RevisionConflict` without adding anything; read the conversation to see the reply. A request whose response was lost can therefore always be sent again unchanged.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is neither required nor read here. With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startIntakeConversation`.
+     * Start a Generic Intake turn
+     */
+    async startIntakeTurnRaw(requestParameters: StartIntakeTurnOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<IntakeTurnStarted>> {
+        const requestOptions = await this.startIntakeTurnRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => IntakeTurnStartedFromJSON(jsonValue));
+    }
+
+    /**
+     * Sends the reporter\'s next message in a Generic Intake conversation, or finishes the conversation. The call answers 202 with the turn\'s id; the turn runs in the background. Read it with `getIntakeTurnEvents` until it ends, then read the conversation with `getConversation`, whose `revision` is the `expectedRevision` of the next turn.  Send `finish: true` to end the conversation: every draft is filed without a model call, and `content` is stored as the reporter\'s closing message without being analyzed. A finishing turn has ended by the time the call answers, so its first `getIntakeTurnEvents` read returns `done` at once. Finishing needs no entitlement; any other turn requires `genericIntake` and answers 403 `Forbidden` without it. A Generic Intake conversation also finishes on its own when the assistant reads the reporter\'s message as an ending, or after 60 minutes without a turn.  **One turn at a time, and safe resends.** `expectedRevision` is the `revision` of the last read of the conversation, or of the last turn\'s `done` event. While another turn of the conversation runs, the call answers 409 `IntakeTurnRunning` with that turn\'s `turnId`: read its events instead of sending again. Once a turn has committed, a resend of the same message names a revision the conversation has moved past and answers 409 `RevisionConflict` without adding anything; read the conversation to see the reply. A request whose response was lost can therefore always be sent again unchanged.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is neither required nor read here. With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startIntakeConversation`.
+     * Start a Generic Intake turn
+     */
+    async startIntakeTurn(requestParameters: StartIntakeTurnOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<IntakeTurnStarted> {
+        const response = await this.startIntakeTurnRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

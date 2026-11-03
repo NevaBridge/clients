@@ -32,7 +32,7 @@ From your Electron application's directory, install both resulting tarballs toge
 `<clients-checkout>` with the location of the repository you built:
 
 ```bash
-npm install <clients-checkout>/out/nevabridge-sdk-0.0.1.tgz <clients-checkout>/out/nevabridge-electron-0.1.0.tgz
+npm install <clients-checkout>/out/nevabridge-sdk-0.1.0.tgz <clients-checkout>/out/nevabridge-electron-0.1.0.tgz
 ```
 
 Pin the repository revision and keep the tarballs in your build inputs or your own package feed.

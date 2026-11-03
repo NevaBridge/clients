@@ -22,8 +22,14 @@ Consumers call a small handwritten client and never touch generated code or inte
 - `confirmAttachmentUpload`
 - `requestAttachmentDownloadUrl`
 - `deleteAttachment`
+- `startIntakeConversation`
+- `startIntakeTurn`
+- `getIntakeTurnEvents`
+- `listIntakeConversations`
+- `getFeatures`
 
-These ten are the whole supported public API.
+These fifteen are the whole supported public API. Two functions build on them: `waitForIntakeTurn` follows a
+Generic Intake turn to its end, and `intakeTurnRunningId` reads the running turn from a refused turn start.
 
 ## Authentication and endpoint
 
@@ -67,6 +73,29 @@ A conversation holds at most 10 files of up to 100 MB each, the tenant's files s
 Files can be added and deleted until the report is submitted, and they stay readable afterwards.
 `listAttachments` lists confirmed files, `requestAttachmentDownloadUrl` returns a URL valid for 5 minutes, and `deleteAttachment` removes a file.
 The [SDK README](../../sdk/typescript/README.md#attach-files) has a full upload example and every limit.
+
+## Generic Intake
+
+Generic Intake needs the Generic Intake feature, which NevaBridge enables per tenant; `getFeatures` reports it.
+Its turns run in the background. `startIntakeConversation` and `startIntakeTurn` answer with a turn id, and the
+turn's events (`status`, `text`, then exactly one `done` or `error`) are read with `getIntakeTurnEvents`, an
+opaque cursor, a `wait` of 0 to 20 seconds and a `linger` of 0 to 3000 milliseconds.
+
+The generator merges the members of the contract's event union into one interface, so the client converts each event
+into a union of the generated member types and checks its fields, rejecting a known type whose fields break the
+contract. An event of a type the SDK does not know arrives as `{type: "unknown", eventType, payload}`, with the wire type
+in `eventType` and the event as sent in `payload`, so a `switch` on `type` still narrows the union. The contract asks
+clients to ignore such events.
+
+`waitForIntakeTurn` polls from the first event, passes each cursor on, and calls `onEvent` for every event in order.
+It resolves with the new `revision` on `done` and throws `NevaBridgeApiError` on `error`, with the failure's
+`statusCode` as `status` and its body as `detail`. It retries a poll that failed with a network error (including a response that breaks off mid-body) or a gateway
+502 or 504 up to three times, 500 milliseconds apart, because reading again with the same cursor is safe. Any other
+failure, and a fourth failed poll in a row, throws.
+
+After `done` the consumer reads `getConversation`, which is authoritative and also returns `revision` and, while a
+turn runs, `activeTurnId`. Each further turn sends that `revision` as `expectedRevision`. A turn start while another
+turn runs fails with 409 `IntakeTurnRunning`; `intakeTurnRunningId` returns that turn's id.
 
 ## Types and compatibility
 
