@@ -21,6 +21,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="..\..\src\NevaBridge.Sample.DesktopApp\nevabridge-features.json" Link="nevabridge-features.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\sql\create-nevabridge-settings.sql" Link="create-nevabridge-settings.sql" CopyToOutputDirectory="PreserveNewest" />
     <!-- The pinned webview chat bridge protocol cases the conformance tests run. -->
     <Content Include="..\..\..\..\contracts\webview-chat-protocol\v1\conformance\*.json" LinkBase="webview-chat-protocol\v1\conformance" CopyToOutputDirectory="PreserveNewest" />

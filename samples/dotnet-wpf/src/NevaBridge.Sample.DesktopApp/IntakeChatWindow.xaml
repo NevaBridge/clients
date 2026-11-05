@@ -1,0 +1,8 @@
+<Window x:Class="NevaBridge.Sample.DesktopApp.IntakeChatWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:nevabridge="clr-namespace:NevaBridge.Wpf;assembly=NevaBridge.Wpf"
+        Title="Support assistant" Width="460" Height="680"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+    <nevabridge:NevaBridgeIntakeChatControl x:Name="Chat" />
+</Window>

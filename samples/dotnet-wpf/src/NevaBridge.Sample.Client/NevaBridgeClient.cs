@@ -17,10 +17,11 @@ namespace NevaBridge.Sample.Client;
 /// Whoever runs this code can read the key. Use it in a desktop application only when every
 /// user of that application may see all of the tenant's conversations and act under any
 /// reporter identity and role. Otherwise, move these calls into a service the users cannot
-/// inspect, and give the chat controls an <see cref="INevaBridgeConversations"/> and an
-/// <see cref="INevaBridgeWebChatApi"/> that call it.
+/// inspect, and give the chat controls an <see cref="INevaBridgeConversations"/>, an
+/// <see cref="INevaBridgeIntakeConversations"/> and an <see cref="INevaBridgeWebChatApi"/> that
+/// call it.
 /// </remarks>
-public sealed class NevaBridgeClient : INevaBridgeConversations, INevaBridgeWebChatApi
+public sealed class NevaBridgeClient : INevaBridgeConversations, INevaBridgeIntakeConversations, INevaBridgeWebChatApi
 {
     /// <summary>Seconds a turn-events read waits for a first new event.</summary>
     private const int PollWaitSeconds = 20;
@@ -95,6 +96,51 @@ public sealed class NevaBridgeClient : INevaBridgeConversations, INevaBridgeWebC
             await UploadAsync(conversationId, uploaderId, file, cancellationToken).ConfigureAwait(false),
             cancellationToken).ConfigureAwait(false);
 
+    public Task<IntakeConversationStarted> StartIntakeConversationAsync(
+        string productId,
+        NevaBridgeReporter reporter,
+        StartIntakeConversationRequest request,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<IntakeConversationStarted>(
+            StartIntakeConversationRequestMessage(productId, reporter, request),
+            cancellationToken);
+
+    public Task<IntakeTurnStarted> StartIntakeTurnAsync(
+        string conversationId,
+        StartIntakeTurnRequest request,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<IntakeTurnStarted>(StartIntakeTurnRequestMessage(conversationId, request), cancellationToken);
+
+    public Task<IntakeTurnEvents> GetIntakeTurnEventsAsync(
+        string turnId,
+        string? after,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<IntakeTurnEvents>(IntakeTurnEventsRequestMessage(turnId, after), cancellationToken);
+
+    public async Task<IReadOnlyList<Attachment>> ListAttachmentsAsync(
+        string conversationId,
+        CancellationToken cancellationToken = default) =>
+        (await SendAsync<AttachmentList>(
+            CreateRequest(HttpMethod.Get, $"v1/conversations/{Uri.EscapeDataString(conversationId)}/attachments", null),
+            cancellationToken).ConfigureAwait(false)).Attachments;
+
+    public async Task DeleteAttachmentAsync(
+        string conversationId,
+        string attachmentId,
+        CancellationToken cancellationToken = default)
+    {
+        using HttpRequestMessage message = CreateRequest(
+            HttpMethod.Post,
+            $"v1/conversations/{Uri.EscapeDataString(conversationId)}/actions/delete-attachment",
+            new AttachmentCommand(attachmentId));
+        using HttpResponseMessage response = await _http.SendAsync(message, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            throw ApiErrors.FromResponse((int)response.StatusCode, body);
+        }
+    }
+
     Task<JsonElement> INevaBridgeWebChatApi.StartConversationAsync(
         string productId,
         NevaBridgeReporter reporter,
@@ -141,37 +187,20 @@ public sealed class NevaBridgeClient : INevaBridgeConversations, INevaBridgeWebC
         string productId,
         NevaBridgeReporter reporter,
         StartIntakeConversationRequest request,
-        CancellationToken cancellationToken)
-    {
-        HttpRequestMessage message = CreateRequest(
-            HttpMethod.Post,
-            $"v1/products/{Uri.EscapeDataString(productId)}/intake-conversations",
-            request);
-        AddActorHeaders(message, reporter);
-        return SendJsonAsync(message, cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        SendJsonAsync(StartIntakeConversationRequestMessage(productId, reporter, request), cancellationToken);
 
     Task<JsonElement> INevaBridgeWebChatApi.StartIntakeTurnAsync(
         string conversationId,
         StartIntakeTurnRequest request,
         CancellationToken cancellationToken) =>
-        SendJsonAsync(
-            CreateRequest(
-                HttpMethod.Post,
-                $"v1/intake-conversations/{Uri.EscapeDataString(conversationId)}/turns",
-                request),
-            cancellationToken);
+        SendJsonAsync(StartIntakeTurnRequestMessage(conversationId, request), cancellationToken);
 
     Task<JsonElement> INevaBridgeWebChatApi.GetIntakeTurnEventsAsync(
         string turnId,
         string? after,
-        CancellationToken cancellationToken)
-    {
-        string query = (after is null ? string.Empty : $"after={Uri.EscapeDataString(after)}&") + $"wait={PollWaitSeconds}";
-        return SendJsonAsync(
-            CreateRequest(HttpMethod.Get, $"v1/intake-turns/{Uri.EscapeDataString(turnId)}/events?{query}", null),
-            cancellationToken);
-    }
+        CancellationToken cancellationToken) =>
+        SendJsonAsync(IntakeTurnEventsRequestMessage(turnId, after), cancellationToken);
 
     Task<JsonElement> INevaBridgeWebChatApi.GetConversationAsync(
         string conversationId,
@@ -216,6 +245,28 @@ public sealed class NevaBridgeClient : INevaBridgeConversations, INevaBridgeWebC
             request);
         AddActorHeaders(message, reporter);
         return message;
+    }
+
+    private HttpRequestMessage StartIntakeConversationRequestMessage(
+        string productId,
+        NevaBridgeReporter reporter,
+        StartIntakeConversationRequest request)
+    {
+        HttpRequestMessage message = CreateRequest(
+            HttpMethod.Post,
+            $"v1/products/{Uri.EscapeDataString(productId)}/intake-conversations",
+            request);
+        AddActorHeaders(message, reporter);
+        return message;
+    }
+
+    private HttpRequestMessage StartIntakeTurnRequestMessage(string conversationId, StartIntakeTurnRequest request) =>
+        CreateRequest(HttpMethod.Post, $"v1/intake-conversations/{Uri.EscapeDataString(conversationId)}/turns", request);
+
+    private HttpRequestMessage IntakeTurnEventsRequestMessage(string turnId, string? after)
+    {
+        string query = (after is null ? string.Empty : $"after={Uri.EscapeDataString(after)}&") + $"wait={PollWaitSeconds}";
+        return CreateRequest(HttpMethod.Get, $"v1/intake-turns/{Uri.EscapeDataString(turnId)}/events?{query}", null);
     }
 
     private HttpRequestMessage AppendMessageRequestMessage(string conversationId, AppendMessageRequest request) =>
@@ -332,4 +383,6 @@ public sealed class NevaBridgeClient : INevaBridgeConversations, INevaBridgeWebC
     private sealed record UploadTicket(string AttachmentId, Uri UploadUrl, DateTimeOffset ExpiresAt);
 
     private sealed record AttachmentCommand(string AttachmentId);
+
+    private sealed record AttachmentList(IReadOnlyList<Attachment> Attachments);
 }

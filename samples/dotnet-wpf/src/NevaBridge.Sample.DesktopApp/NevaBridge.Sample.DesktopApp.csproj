@@ -15,4 +15,9 @@
     <ProjectReference Include="..\..\..\..\widgets\wpf\src\NevaBridge.Chat\NevaBridge.Chat.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Switches the example's chats and attachments on and off; read at start-up. -->
+    <Content Include="nevabridge-features.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

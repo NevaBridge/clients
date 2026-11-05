@@ -11,10 +11,19 @@
                 <MenuItem Header="E_xit" Click="OnExit" />
             </MenuItem>
             <MenuItem Header="_Help">
-                <MenuItem Header="_Support..." Click="OnOpenSupport" />
-                <MenuItem Header="_NevaBridge chat..." Click="OnOpenNevaBridgeChat" />
+                <MenuItem x:Name="IntakeChatMenuItem" Header="Support _assistant..." Click="OnOpenIntakeChat" />
+                <MenuItem x:Name="ClassicChatMenuItem" Header="_Report a problem..." Click="OnOpenSupport" />
+                <MenuItem x:Name="WebChatMenuItem" Header="_NevaBridge chat..." Click="OnOpenNevaBridgeChat" />
             </MenuItem>
         </Menu>
+
+        <!-- Why the support assistant is hidden: the tenant's features could not be read. -->
+        <Border x:Name="FeaturesProblem" DockPanel.Dock="Top" Background="#FFF4E5" Padding="16,6" Visibility="Collapsed">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Content="Check again" Padding="10,3" Click="OnCheckFeaturesAgain" />
+                <TextBlock x:Name="FeaturesProblemText" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </DockPanel>
+        </Border>
 
         <!-- Stand-in for the host application's own screens. -->
         <Grid Margin="16">
@@ -24,7 +33,7 @@
             </Grid.RowDefinitions>
             <DockPanel Grid.Row="0" Margin="0,0,0,12">
                 <!-- The NevaBridge web chat, recognizable by the NevaBridge mark alone. -->
-                <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="6" Click="OnOpenNevaBridgeChat"
+                <Button x:Name="WebChatButton" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="6" Click="OnOpenNevaBridgeChat"
                         ToolTip="NevaBridge" AutomationProperties.Name="NevaBridge support chat">
                     <Viewbox Width="22" Height="22">
                         <Canvas Width="64" Height="64">
@@ -43,8 +52,10 @@
                         </Canvas>
                     </Viewbox>
                 </Button>
-                <!-- The native chat control, styled like this application. -->
-                <Button DockPanel.Dock="Right" Content="Support" Padding="14,6" Click="OnOpenSupport" />
+                <!-- The native classic chat: the reporter picks the report type. -->
+                <Button x:Name="ClassicChatButton" DockPanel.Dock="Right" Margin="8,0,0,0" Content="Report a problem" Padding="14,6" Click="OnOpenSupport" />
+                <!-- The native Generic Intake chat: the assistant works out what the reporter needs. -->
+                <Button x:Name="IntakeChatButton" DockPanel.Dock="Right" Content="Support assistant" Padding="14,6" Click="OnOpenIntakeChat" />
                 <TextBlock Text="Invoices" FontSize="20" FontWeight="SemiBold" VerticalAlignment="Center" />
             </DockPanel>
             <DataGrid x:Name="Invoices" Grid.Row="1" IsReadOnly="True" AutoGenerateColumns="False" HeadersVisibility="Column">

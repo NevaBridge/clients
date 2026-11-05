@@ -20,4 +20,7 @@ internal static class ChatErrors
             title,
             MessageBoxButton.OK,
             MessageBoxImage.Warning);
+
+    public static void ShowUnavailable(Window owner, string message, string title) =>
+        MessageBox.Show(owner, message, title, MessageBoxButton.OK, MessageBoxImage.Information);
 }
