@@ -306,7 +306,9 @@
         el.attachments.hidden = false;
       }
     } catch (error) {
-      if (error.status === 403) {
+      if (error.name === 'Cancelled') {
+        // The user closed the file picker; nothing to report.
+      } else if (error.status === 403) {
         // The feature was switched off while the chat was open.
         state.features.chatAttachments = false;
         el.error.textContent = 'File attachments are not enabled for your organization.';

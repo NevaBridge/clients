@@ -1,11 +1,13 @@
 export {createWebChatBridge} from "./bridge.js";
 export type {WebChatBridge, WebChatBridgeOptions} from "./bridge.js";
-export {createSdkConversations} from "./conversations.js";
+export {createSdkConversations, UploadFailedError} from "./conversations.js";
 export type {
   NevaBridgeConversations,
   PickedFile,
   Reporter,
   StartConversationInput,
+  StartIntakeConversationInput,
+  StartIntakeTurnInput,
 } from "./conversations.js";
 export {createSafeStorageSettingsStore} from "./safe-storage-store.js";
 export type {

@@ -40,8 +40,14 @@ export interface NevaBridgeClientConfiguration {
   readonly baseUrl?: string;
   readonly tokenProvider: () => string | Promise<string>;
   /** Sends every HTTP request. Defaults to the global `fetch`. */
-  readonly fetch?: typeof fetch;
+  readonly fetch?: FetchFunction;
 }
+
+/** The part of `fetch` the client uses, so a plain function can stand in for it. */
+export type FetchFunction = (
+  input: string | URL | Request,
+  init?: RequestInit,
+) => Promise<Response>;
 
 /** A JSON value as the API sent it. */
 export type JsonValue =

@@ -118,7 +118,14 @@ process through `@nevabridge/sdk`.
 
 The page never receives the API key. The bridge treats it as untrusted: it answers only the page's own
 origin, offers only the chat operations, sets the product, reporter and context itself, and continues
-only conversations the page started. Links such as a delivered ticket open in the default browser.
+only conversations and Generic Intake turns it returned to the page. Links such as a delivered ticket
+open in the default browser.
+
+The bridge speaks version 1 of the webview chat bridge protocol, pinned in this repository under
+`contracts/webview-chat-protocol/`, and passes every conformance case there. That includes the Generic
+Intake requests: when your tenant has Generic Intake, a page that speaks them (the hosted `/v1/` page,
+or a copy of it) runs a Generic Intake conversation through this bridge, polling each turn. The copy
+shipped in this package still runs the classic chat.
 
 ## Feature gates and attachments
 
@@ -133,3 +140,7 @@ NevaBridge itself. The key is organization-wide: whoever obtains it can read eve
 every user and act as any reporter. That is acceptable when every user of your application may see
 everything your organization reports. Otherwise, move the NevaBridge calls into a small service your
 users cannot inspect, and pass `openWebChatWindow` a `conversations` object that calls that service.
+It implements `NevaBridgeConversations`: each operation resolves to the API's JSON for that operation,
+unchanged, because the bridge passes it to the page as it is. Fail with the SDK's `NevaBridgeApiError`
+carrying the API's status and error body, and with `UploadFailedError` when the upload of an attachment
+fails.

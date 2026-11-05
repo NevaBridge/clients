@@ -31,12 +31,14 @@ them, but API compatibility, service availability and security updates still nee
 The page talks only to its host, through `window.chrome.webview` (WebView2) or `window.nevabridgeHost`
 (the Electron preload). Every message is a JSON string: a request carries an `id` and a `type`, and the
 answer echoes the `id` with `{"ok": true, "result": ...}` or
-`{"ok": false, "error": {"name", "message", "status", "retryable"}}`.
+`{"ok": false, "error": {"name", "message", "status", "retryable"}}`. A closed file picker answers the
+error `Cancelled`, which this page ignores. The full protocol, including the Generic Intake requests
+this copy does not send, is pinned under `contracts/webview-chat-protocol/`.
 
-| Request                                           | Meaning                                                                                     |
-| ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `startConversation` (`text`, optional `category`) | Start a conversation with the first message.                                                |
-| `appendMessage` (`conversationId`, `text`)        | Continue a conversation this page started.                                                  |
-| `submitReport` (`conversationId`, `reportId`)     | Submit a report of a conversation this page started.                                        |
-| `getFeatures`                                     | The tenant's effective features, such as `chatAttachments`.                                 |
-| `attachFile` (`conversationId`)                   | The host shows its file picker and uploads the file; the result is the attachment, or null. |
+| Request                                           | Meaning                                                                            |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `startConversation` (`text`, optional `category`) | Start a conversation with the first message.                                       |
+| `appendMessage` (`conversationId`, `text`)        | Continue a conversation this page started.                                         |
+| `submitReport` (`conversationId`, `reportId`)     | Submit a report of a conversation this page started.                               |
+| `getFeatures`                                     | The tenant's effective features, such as `chatAttachments`.                        |
+| `attachFile` (`conversationId`)                   | The host shows its file picker and uploads the file; the result is the attachment. |

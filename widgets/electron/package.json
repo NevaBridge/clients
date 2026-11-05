@@ -26,6 +26,7 @@
   },
   "files": [
     "dist",
+    "CHANGELOG.md",
     "README.md"
   ],
   "scripts": {
@@ -37,7 +38,7 @@
     "build:types": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
-    "format:check": "prettier --check src tests README.md package.json tsconfig.json tsconfig.build.json",
+    "format:check": "prettier --check src tests README.md CHANGELOG.md package.json tsconfig.json tsconfig.build.json",
     "check": "bun run format:check && bun run typecheck && bun run test && bun run build"
   },
   "dependencies": {

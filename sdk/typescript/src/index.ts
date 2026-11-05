@@ -6,6 +6,7 @@ export {
 export type {
   AppendMessageOptions,
   AttachmentOptions,
+  FetchFunction,
   GetConversationOptions,
   GetFeaturesOptions,
   GetIntakeTurnEventsOptions,

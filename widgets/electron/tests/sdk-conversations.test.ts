@@ -147,7 +147,7 @@ describe("SDK-backed conversations", () => {
     expect(JSON.parse(requests[2]!.body)).toEqual({
       attachmentId: "attachment-1",
     });
-    expect(attachment.fileName).toBe("app.log");
+    expect(attachment).toMatchObject({fileName: "app.log"});
   });
 
   test("start a conversation with the reporter's identity headers", async () => {
@@ -191,6 +191,6 @@ describe("SDK-backed conversations", () => {
     const body = JSON.parse(requests[0]!.body) as Record<string, unknown>;
     expect(body["category"]).toBe("bug_report");
     expect(body["applicationContext"]).toEqual({screen: "Invoices"});
-    expect(turn.assistantMessage.content).toBe("Hello");
+    expect(turn).toMatchObject({assistantMessage: {content: "Hello"}});
   });
 });

@@ -5,7 +5,9 @@ import type {PickedFile} from "../src/conversations.js";
 import {
   CONVERSATION_ID,
   FakeConversations,
+  NEXT_TURN_ID,
   REPORT_ID,
+  TURN_ID,
 } from "./support/fake-conversations.js";
 
 const PRODUCT_ID = "product-00000000-0000-4000-8000-000000000001";
@@ -20,6 +22,7 @@ interface Reply {
     message: string;
     status: number | null;
     retryable: boolean;
+    turnId?: string;
   };
 }
 
@@ -144,7 +147,7 @@ describe("web chat bridge", () => {
 
     // Then
     expect(nevaBridge.calls).toHaveLength(0);
-    expect(reply?.error?.name).toBe("InvalidRequest");
+    expect(reply?.error?.name).toBe("UnsupportedRequest");
   });
 
   test("gives no bridge to a page served without https from another machine", () => {
@@ -278,7 +281,7 @@ describe("web chat bridge", () => {
     expect(reply?.result?.["fileName"]).toBe("app.log");
   });
 
-  test("attaches nothing when the user closes the file picker", async () => {
+  test("answers Cancelled and attaches nothing when the user closes the file picker", async () => {
     // Given
     const bridge = createBridge();
     await send(bridge, {id: 1, type: "startConversation", text: "It crashes."});
@@ -292,8 +295,12 @@ describe("web chat bridge", () => {
 
     // Then
     expect(nevaBridge.calls).toHaveLength(1);
-    expect(reply?.ok).toBe(true);
-    expect(reply?.result).toBeNull();
+    expect(reply?.ok).toBe(false);
+    expect(reply?.error).toMatchObject({
+      name: "Cancelled",
+      status: null,
+      retryable: false,
+    });
   });
 
   test("does not offer attachments when the host has no file picker", async () => {
@@ -309,7 +316,7 @@ describe("web chat bridge", () => {
     });
 
     // Then
-    expect(reply?.error?.name).toBe("UnsupportedOperation");
+    expect(reply?.error?.name).toBe("UnsupportedRequest");
   });
 
   test("reports attachments as off when the host has no file picker", async () => {
@@ -386,9 +393,26 @@ describe("web chat bridge", () => {
   });
 
   test.each([
-    ['{"id":4,"type":"listConversations"}', 4, "UnsupportedOperation"],
-    ['{"id":5,"type":"startConversation","text":"   "}', 5, "InvalidRequest"],
-    ["not json", 0, "InvalidRequest"],
+    ["not json"],
+    ['["an", "array"]'],
+    ['{"type":"getFeatures"}'],
+    ['{"id":"","type":"getFeatures"}'],
+  ])("ignores a message without a request id: %s", async (message) => {
+    // When
+    const reply = await send(createBridge(), message);
+
+    // Then
+    expect(reply).toBeNull();
+    expect(nevaBridge.calls).toHaveLength(0);
+  });
+
+  test.each([
+    ['{"id":4,"type":"listConversations"}', 4, "UnsupportedRequest"],
+    [
+      '{"id":5,"type":"startConversation","text":"   "}',
+      5,
+      "UnsupportedRequest",
+    ],
   ])(
     "refuses requests outside the protocol: %s",
     async (message, expectedId, expectedError) => {
@@ -401,4 +425,167 @@ describe("web chat bridge", () => {
       expect(reply?.error?.name).toBe(expectedError);
     },
   );
+
+  describe("Generic Intake turns", () => {
+    async function startIntake(bridge: WebChatBridge): Promise<void> {
+      await send(bridge, {
+        id: 1,
+        type: "startIntakeConversation",
+        text: "It crashes.",
+      });
+    }
+
+    test("starts a Generic Intake conversation with the host's product, reporter and context", async () => {
+      // When
+      const reply = await send(createBridge(), {
+        id: 1,
+        type: "startIntakeConversation",
+        text: "It crashes.",
+      });
+
+      // Then
+      expect(nevaBridge.calls[0]).toEqual({
+        operation: "startIntake",
+        args: {
+          productId: PRODUCT_ID,
+          reporter: {id: "jdoe@corp.example", displayName: "Jane Doe"},
+          input: {
+            text: "It crashes.",
+            applicationContext: {screen: "Invoices"},
+          },
+        },
+      });
+      expect(reply?.result).toEqual({
+        conversationId: CONVERSATION_ID,
+        turnId: TURN_ID,
+      });
+    });
+
+    test("reads the turn a start returned", async () => {
+      // Given
+      const bridge = createBridge();
+      await startIntake(bridge);
+
+      // When
+      const reply = await send(bridge, {
+        id: 2,
+        type: "getIntakeTurnEvents",
+        turnId: TURN_ID,
+        after: "3",
+      });
+
+      // Then
+      expect(nevaBridge.calls[1]).toEqual({
+        operation: "events",
+        args: {turnId: TURN_ID, after: "3"},
+      });
+      expect(reply?.ok).toBe(true);
+    });
+
+    test("reads the turn a later turn start returned", async () => {
+      // Given
+      const bridge = createBridge();
+      await startIntake(bridge);
+      await send(bridge, {
+        id: 2,
+        type: "startIntakeTurn",
+        conversationId: CONVERSATION_ID,
+        text: "On save.",
+        expectedRevision: 1,
+      });
+
+      // When
+      const reply = await send(bridge, {
+        id: 3,
+        type: "getIntakeTurnEvents",
+        turnId: NEXT_TURN_ID,
+      });
+
+      // Then
+      expect(nevaBridge.calls[1]).toEqual({
+        operation: "startTurn",
+        args: {
+          conversationId: CONVERSATION_ID,
+          input: {text: "On save.", expectedRevision: 1, finish: undefined},
+        },
+      });
+      expect(reply?.ok).toBe(true);
+    });
+
+    test("reads the running turn a refused turn start named", async () => {
+      // Given
+      const bridge = createBridge();
+      await startIntake(bridge);
+      nevaBridge.failWith = new NevaBridgeApiError(409, new Headers(), {
+        error: "IntakeTurnRunning",
+        message: "Another turn of this conversation is running.",
+        turnId: NEXT_TURN_ID,
+      });
+      const refused = await send(bridge, {
+        id: 2,
+        type: "startIntakeTurn",
+        conversationId: CONVERSATION_ID,
+        text: "On save.",
+        expectedRevision: 1,
+      });
+      nevaBridge.failWith = null;
+
+      // When
+      const reply = await send(bridge, {
+        id: 3,
+        type: "getIntakeTurnEvents",
+        turnId: NEXT_TURN_ID,
+      });
+
+      // Then
+      expect(refused?.error?.turnId).toBe(NEXT_TURN_ID);
+      expect(reply?.ok).toBe(true);
+    });
+
+    test("reads the running turn a conversation read named", async () => {
+      // Given
+      const bridge = createBridge();
+      await startIntake(bridge);
+      nevaBridge.activeTurnId = NEXT_TURN_ID;
+      await send(bridge, {
+        id: 2,
+        type: "getConversation",
+        conversationId: CONVERSATION_ID,
+      });
+
+      // When
+      const reply = await send(bridge, {
+        id: 3,
+        type: "getIntakeTurnEvents",
+        turnId: NEXT_TURN_ID,
+      });
+
+      // Then
+      expect(reply?.ok).toBe(true);
+    });
+
+    test.each([
+      {expectedRevision: -1},
+      {expectedRevision: 1.5},
+      {expectedRevision: "1"},
+      {expectedRevision: 1, finish: "yes"},
+    ])("refuses a turn start outside the protocol: %o", async (fields) => {
+      // Given
+      const bridge = createBridge();
+      await startIntake(bridge);
+
+      // When
+      const reply = await send(bridge, {
+        id: 2,
+        type: "startIntakeTurn",
+        conversationId: CONVERSATION_ID,
+        text: "On save.",
+        ...fields,
+      });
+
+      // Then
+      expect(nevaBridge.calls).toHaveLength(1);
+      expect(reply?.error?.name).toBe("UnsupportedRequest");
+    });
+  });
 });
