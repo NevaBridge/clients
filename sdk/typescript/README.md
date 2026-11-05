@@ -24,7 +24,17 @@ const client = new NevaBridgeClient({
 
 The token provider returns the API key. The client calls it before every operation, so your application can return a refreshed credential without creating a new client. Set `baseUrl` to use a non-production endpoint. Never expose the API key to browser code.
 
-Pass the user's display name as `actorName`, unencoded. The SDK percent-encodes it for the `X-Actor-Name` header, which handles non-ASCII names.
+Pass the user's display name as `actorName`, unencoded. The SDK sends a name of printable ASCII without `%` as it is, and percent-encodes any other name for the `X-Actor-Name` header, which NevaBridge decodes.
+
+Set `fetch` to send the client's requests through your own `fetch` implementation, for example one that adds a proxy or records requests in tests.
+
+## Relay the API's JSON
+
+`client.json` offers every operation that answers with a body, with the same options, and resolves to that body as the API's JSON instead of an SDK model: dates stay strings, and fields this SDK revision does not know yet are kept. Use it when you pass NevaBridge answers on to code that reads the API's JSON, such as the NevaBridge web chat page. Errors are the same `NevaBridgeApiError` as for the typed operations.
+
+```ts
+const detail = await client.json.getConversation({conversationId});
+```
 
 Pass every knowledge audience that applies in `actorRoles`. Each role is a separate grant, so an authenticated customer who may also use public knowledge sends both `"anonymous"` and `"customer"`. The SDK sends the `X-Actor-Roles` header only when it starts a conversation. Roles only matter when NevaBridge has enabled the knowledge base feature for your tenant. With it, the assistant answers from the tenant documents those roles may read. Without it, turns run the same way without document retrieval.
 

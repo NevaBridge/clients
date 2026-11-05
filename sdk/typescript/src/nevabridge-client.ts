@@ -20,7 +20,12 @@ import type {StartConversationRequest} from "./generated/models/StartConversatio
 import type {StartIntakeConversationRequest} from "./generated/models/StartIntakeConversationRequest.js";
 import type {StartIntakeTurnRequest} from "./generated/models/StartIntakeTurnRequest.js";
 import type {SubmitReportResult} from "./generated/models/SubmitReportResult.js";
-import {Configuration, FetchError, ResponseError} from "./generated/runtime.js";
+import {
+  Configuration,
+  FetchError,
+  ResponseError,
+  type ApiResponse,
+} from "./generated/runtime.js";
 import {
   intakeTurnEventPage,
   type IntakeTurnEvent,
@@ -34,6 +39,42 @@ const POLL_RETRY_PAUSE_MILLISECONDS = 500;
 export interface NevaBridgeClientConfiguration {
   readonly baseUrl?: string;
   readonly tokenProvider: () => string | Promise<string>;
+  /** Sends every HTTP request. Defaults to the global `fetch`. */
+  readonly fetch?: typeof fetch;
+}
+
+/** A JSON value as the API sent it. */
+export type JsonValue =
+  null | boolean | number | string | JsonValue[] | {[key: string]: JsonValue};
+
+/**
+ * The operations that answer with a body, resolving to that body as the API's
+ * JSON instead of an SDK model: dates stay strings and fields this SDK revision
+ * does not know are kept. For relaying NevaBridge answers to a client that reads
+ * the API's JSON, such as the web chat page. Errors are the same as for the
+ * typed operations.
+ */
+export interface NevaBridgeJsonOperations {
+  startConversation(options: StartConversationOptions): Promise<JsonValue>;
+  listConversations(options: ListConversationsOptions): Promise<JsonValue>;
+  getConversation(options: GetConversationOptions): Promise<JsonValue>;
+  appendMessage(options: AppendMessageOptions): Promise<JsonValue>;
+  startIntakeConversation(
+    options: StartIntakeConversationOptions,
+  ): Promise<JsonValue>;
+  startIntakeTurn(options: StartIntakeTurnOptions): Promise<JsonValue>;
+  getIntakeTurnEvents(options: GetIntakeTurnEventsOptions): Promise<JsonValue>;
+  listIntakeConversations(
+    options: ListIntakeConversationsOptions,
+  ): Promise<JsonValue>;
+  getFeatures(options?: GetFeaturesOptions): Promise<JsonValue>;
+  submitReport(options: SubmitReportOptions): Promise<JsonValue>;
+  listAttachments(options: ListAttachmentsOptions): Promise<JsonValue>;
+  requestAttachmentUpload(
+    options: RequestAttachmentUploadOptions,
+  ): Promise<JsonValue>;
+  confirmAttachmentUpload(options: AttachmentOptions): Promise<JsonValue>;
+  requestAttachmentDownloadUrl(options: AttachmentOptions): Promise<JsonValue>;
 }
 
 export interface StartConversationOptions {
@@ -196,6 +237,35 @@ export function intakeTurnRunningId(error: unknown): string | undefined {
   return undefined;
 }
 
+/**
+ * Header values are ASCII, and NevaBridge percent-decodes this one. A name of
+ * printable ASCII without `%` reads the same either way, so it is sent as it is.
+ */
+function actorNameHeader(actorName: string | undefined): string | undefined {
+  if (actorName === undefined) {
+    return undefined;
+  }
+  return /^[\x20-\x24\x26-\x7e]*$/.test(actorName)
+    ? actorName
+    : encodeURIComponent(actorName);
+}
+
+/** Reads a success body; a connection that breaks off mid-body is a network failure. */
+async function responseJson(response: Response): Promise<JsonValue> {
+  try {
+    // Parsed JSON text is a JsonValue by construction.
+    return (await response.json()) as JsonValue;
+  } catch (error: unknown) {
+    if (error instanceof SyntaxError) {
+      throw error;
+    }
+    throw new FetchError(
+      error instanceof Error ? error : new Error(String(error)),
+      "The response body could not be read.",
+    );
+  }
+}
+
 function isRetryablePollFailure(error: unknown): boolean {
   if (error instanceof NevaBridgeApiError) {
     return error.status === 502 || error.status === 504;
@@ -222,6 +292,9 @@ async function pause(
 }
 
 export class NevaBridgeClient {
+  /** The same operations, resolving to the API's JSON; see NevaBridgeJsonOperations. */
+  public readonly json: NevaBridgeJsonOperations;
+
   private readonly attachmentsApi: AttachmentsApi;
   private readonly conversationsApi: ConversationsApi;
   private readonly featuresApi: FeaturesApi;
@@ -231,70 +304,73 @@ export class NevaBridgeClient {
     const generatedConfiguration = new Configuration({
       basePath: configuration.baseUrl?.replace(/\/+$/, ""),
       accessToken: configuration.tokenProvider,
+      fetchApi: configuration.fetch,
     });
     this.attachmentsApi = new AttachmentsApi(generatedConfiguration);
     this.conversationsApi = new ConversationsApi(generatedConfiguration);
     this.featuresApi = new FeaturesApi(generatedConfiguration);
     this.reportsApi = new ReportsApi(generatedConfiguration);
+
+    const json = <Options>(
+      send: (options: Options) => Promise<ApiResponse<unknown>>,
+    ): ((options: Options) => Promise<JsonValue>) => {
+      return async (options) =>
+        await this.request(async () => responseJson((await send(options)).raw));
+    };
+    this.json = {
+      startConversation: json((options) => this.sendStartConversation(options)),
+      listConversations: json((options) => this.sendListConversations(options)),
+      getConversation: json((options) => this.sendGetConversation(options)),
+      appendMessage: json((options) => this.sendAppendMessage(options)),
+      startIntakeConversation: json((options) =>
+        this.sendStartIntakeConversation(options),
+      ),
+      startIntakeTurn: json((options) => this.sendStartIntakeTurn(options)),
+      getIntakeTurnEvents: json((options) =>
+        this.sendGetIntakeTurnEvents(options),
+      ),
+      listIntakeConversations: json((options) =>
+        this.sendListIntakeConversations(options),
+      ),
+      getFeatures: json((options: GetFeaturesOptions = {}) =>
+        this.sendGetFeatures(options),
+      ),
+      submitReport: json((options) => this.sendSubmitReport(options)),
+      listAttachments: json((options) => this.sendListAttachments(options)),
+      requestAttachmentUpload: json((options) =>
+        this.sendRequestAttachmentUpload(options),
+      ),
+      confirmAttachmentUpload: json((options) =>
+        this.sendConfirmAttachmentUpload(options),
+      ),
+      requestAttachmentDownloadUrl: json((options) =>
+        this.sendRequestAttachmentDownloadUrl(options),
+      ),
+    };
   }
 
   public async startConversation(
     options: StartConversationOptions,
   ): Promise<ConversationTurn> {
-    return await this.request(() =>
-      this.conversationsApi.startConversation(
-        {
-          productId: options.productId,
-          xActorId: options.actorId,
-          xActorName:
-            options.actorName === undefined
-              ? undefined
-              : encodeURIComponent(options.actorName),
-          xActorRoles: options.actorRoles,
-          startConversationRequest: options.request,
-        },
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendStartConversation(options));
   }
 
   public async listConversations(
     options: ListConversationsOptions,
   ): Promise<ConversationSummary[]> {
-    return await this.request(() =>
-      this.conversationsApi.listConversations(
-        {
-          productId: options.productId,
-          reporterId: options.reporterId,
-        },
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendListConversations(options));
   }
 
   public async getConversation(
     options: GetConversationOptions,
   ): Promise<ConversationDetail> {
-    return await this.request(() =>
-      this.conversationsApi.getConversation(
-        {conversationId: options.conversationId},
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendGetConversation(options));
   }
 
   public async appendMessage(
     options: AppendMessageOptions,
   ): Promise<ConversationTurn> {
-    return await this.request(() =>
-      this.conversationsApi.appendMessage(
-        {
-          conversationId: options.conversationId,
-          appendMessageRequest: options.request,
-        },
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendAppendMessage(options));
   }
 
   /**
@@ -304,21 +380,7 @@ export class NevaBridgeClient {
   public async startIntakeConversation(
     options: StartIntakeConversationOptions,
   ): Promise<IntakeConversationStarted> {
-    return await this.request(() =>
-      this.conversationsApi.startIntakeConversation(
-        {
-          productId: options.productId,
-          xActorId: options.actorId,
-          xActorName:
-            options.actorName === undefined
-              ? undefined
-              : encodeURIComponent(options.actorName),
-          xActorRoles: options.actorRoles,
-          startIntakeConversationRequest: options.request,
-        },
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendStartIntakeConversation(options));
   }
 
   /**
@@ -329,45 +391,15 @@ export class NevaBridgeClient {
   public async startIntakeTurn(
     options: StartIntakeTurnOptions,
   ): Promise<IntakeTurnStarted> {
-    return await this.request(() =>
-      this.conversationsApi.startIntakeTurn(
-        {
-          conversationId: options.conversationId,
-          startIntakeTurnRequest: options.request,
-        },
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendStartIntakeTurn(options));
   }
 
   public async getIntakeTurnEvents(
     options: GetIntakeTurnEventsOptions,
   ): Promise<IntakeTurnEventPage> {
-    const response = await this.request(() =>
-      this.conversationsApi.getIntakeTurnEventsRaw(
-        {
-          turnId: options.turnId,
-          after: options.after,
-          wait: options.wait,
-          linger: options.linger,
-        },
-        {signal: options.signal},
-      ),
+    const body = await this.request(async () =>
+      responseJson((await this.sendGetIntakeTurnEvents(options)).raw),
     );
-    let body: unknown;
-    try {
-      body = await response.raw.json();
-    } catch (error: unknown) {
-      if (error instanceof SyntaxError) {
-        throw error;
-      }
-      // A connection that breaks off mid-body is a network failure like one
-      // that fails before the status arrives.
-      throw new FetchError(
-        error instanceof Error ? error : new Error(String(error)),
-        "The response body could not be read.",
-      );
-    }
     return intakeTurnEventPage(body);
   }
 
@@ -428,25 +460,13 @@ export class NevaBridgeClient {
   public async listIntakeConversations(
     options: ListIntakeConversationsOptions,
   ): Promise<IntakeConversationList> {
-    return await this.request(() =>
-      this.conversationsApi.listIntakeConversations(
-        {
-          productId: options.productId,
-          reporterId: options.reporterId,
-          cursor: options.cursor,
-          limit: options.limit,
-        },
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendListIntakeConversations(options));
   }
 
   public async getFeatures(
     options: GetFeaturesOptions = {},
   ): Promise<Features> {
-    return await this.request(() =>
-      this.featuresApi.getFeatures({signal: options.signal}),
-    );
+    return await this.typed(() => this.sendGetFeatures(options));
   }
 
   /**
@@ -456,26 +476,13 @@ export class NevaBridgeClient {
   public async submitReport(
     options: SubmitReportOptions,
   ): Promise<SubmitReportResult> {
-    return await this.request(() =>
-      this.reportsApi.submitReport(
-        {
-          conversationId: options.conversationId,
-          reportId: options.reportId,
-        },
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendSubmitReport(options));
   }
 
   public async listAttachments(
     options: ListAttachmentsOptions,
   ): Promise<AttachmentList> {
-    return await this.request(() =>
-      this.attachmentsApi.listAttachments(
-        {conversationId: options.conversationId},
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendListAttachments(options));
   }
 
   /**
@@ -486,43 +493,20 @@ export class NevaBridgeClient {
   public async requestAttachmentUpload(
     options: RequestAttachmentUploadOptions,
   ): Promise<RequestAttachmentUploadResponse> {
-    return await this.request(() =>
-      this.attachmentsApi.requestAttachmentUpload(
-        {
-          conversationId: options.conversationId,
-          xActorId: options.actorId,
-          requestAttachmentUploadRequest: options.request,
-        },
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendRequestAttachmentUpload(options));
   }
 
   public async confirmAttachmentUpload(
     options: AttachmentOptions,
   ): Promise<Attachment> {
-    return await this.request(() =>
-      this.attachmentsApi.confirmAttachmentUpload(
-        {
-          conversationId: options.conversationId,
-          attachmentCommandRequest: {attachmentId: options.attachmentId},
-        },
-        {signal: options.signal},
-      ),
-    );
+    return await this.typed(() => this.sendConfirmAttachmentUpload(options));
   }
 
   public async requestAttachmentDownloadUrl(
     options: AttachmentOptions,
   ): Promise<AttachmentDownloadUrl> {
-    return await this.request(() =>
-      this.attachmentsApi.requestAttachmentDownloadUrl(
-        {
-          conversationId: options.conversationId,
-          attachmentCommandRequest: {attachmentId: options.attachmentId},
-        },
-        {signal: options.signal},
-      ),
+    return await this.typed(() =>
+      this.sendRequestAttachmentDownloadUrl(options),
     );
   }
 
@@ -536,6 +520,173 @@ export class NevaBridgeClient {
         {signal: options.signal},
       ),
     );
+  }
+
+  private sendStartConversation(
+    options: StartConversationOptions,
+  ): Promise<ApiResponse<ConversationTurn>> {
+    return this.conversationsApi.startConversationRaw(
+      {
+        productId: options.productId,
+        xActorId: options.actorId,
+        xActorName: actorNameHeader(options.actorName),
+        xActorRoles: options.actorRoles,
+        startConversationRequest: options.request,
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private sendListConversations(
+    options: ListConversationsOptions,
+  ): Promise<ApiResponse<ConversationSummary[]>> {
+    return this.conversationsApi.listConversationsRaw(
+      {productId: options.productId, reporterId: options.reporterId},
+      {signal: options.signal},
+    );
+  }
+
+  private sendGetConversation(
+    options: GetConversationOptions,
+  ): Promise<ApiResponse<ConversationDetail>> {
+    return this.conversationsApi.getConversationRaw(
+      {conversationId: options.conversationId},
+      {signal: options.signal},
+    );
+  }
+
+  private sendAppendMessage(
+    options: AppendMessageOptions,
+  ): Promise<ApiResponse<ConversationTurn>> {
+    return this.conversationsApi.appendMessageRaw(
+      {
+        conversationId: options.conversationId,
+        appendMessageRequest: options.request,
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private sendStartIntakeConversation(
+    options: StartIntakeConversationOptions,
+  ): Promise<ApiResponse<IntakeConversationStarted>> {
+    return this.conversationsApi.startIntakeConversationRaw(
+      {
+        productId: options.productId,
+        xActorId: options.actorId,
+        xActorName: actorNameHeader(options.actorName),
+        xActorRoles: options.actorRoles,
+        startIntakeConversationRequest: options.request,
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private sendStartIntakeTurn(
+    options: StartIntakeTurnOptions,
+  ): Promise<ApiResponse<IntakeTurnStarted>> {
+    return this.conversationsApi.startIntakeTurnRaw(
+      {
+        conversationId: options.conversationId,
+        startIntakeTurnRequest: options.request,
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private sendGetIntakeTurnEvents(
+    options: GetIntakeTurnEventsOptions,
+  ): Promise<ApiResponse<unknown>> {
+    return this.conversationsApi.getIntakeTurnEventsRaw(
+      {
+        turnId: options.turnId,
+        after: options.after,
+        wait: options.wait,
+        linger: options.linger,
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private sendListIntakeConversations(
+    options: ListIntakeConversationsOptions,
+  ): Promise<ApiResponse<IntakeConversationList>> {
+    return this.conversationsApi.listIntakeConversationsRaw(
+      {
+        productId: options.productId,
+        reporterId: options.reporterId,
+        cursor: options.cursor,
+        limit: options.limit,
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private sendGetFeatures(
+    options: GetFeaturesOptions,
+  ): Promise<ApiResponse<Features>> {
+    return this.featuresApi.getFeaturesRaw({signal: options.signal});
+  }
+
+  private sendSubmitReport(
+    options: SubmitReportOptions,
+  ): Promise<ApiResponse<SubmitReportResult>> {
+    return this.reportsApi.submitReportRaw(
+      {conversationId: options.conversationId, reportId: options.reportId},
+      {signal: options.signal},
+    );
+  }
+
+  private sendListAttachments(
+    options: ListAttachmentsOptions,
+  ): Promise<ApiResponse<AttachmentList>> {
+    return this.attachmentsApi.listAttachmentsRaw(
+      {conversationId: options.conversationId},
+      {signal: options.signal},
+    );
+  }
+
+  private sendRequestAttachmentUpload(
+    options: RequestAttachmentUploadOptions,
+  ): Promise<ApiResponse<RequestAttachmentUploadResponse>> {
+    return this.attachmentsApi.requestAttachmentUploadRaw(
+      {
+        conversationId: options.conversationId,
+        xActorId: options.actorId,
+        requestAttachmentUploadRequest: options.request,
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private sendConfirmAttachmentUpload(
+    options: AttachmentOptions,
+  ): Promise<ApiResponse<Attachment>> {
+    return this.attachmentsApi.confirmAttachmentUploadRaw(
+      {
+        conversationId: options.conversationId,
+        attachmentCommandRequest: {attachmentId: options.attachmentId},
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private sendRequestAttachmentDownloadUrl(
+    options: AttachmentOptions,
+  ): Promise<ApiResponse<AttachmentDownloadUrl>> {
+    return this.attachmentsApi.requestAttachmentDownloadUrlRaw(
+      {
+        conversationId: options.conversationId,
+        attachmentCommandRequest: {attachmentId: options.attachmentId},
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private async typed<Result>(
+    send: () => Promise<ApiResponse<Result>>,
+  ): Promise<Result> {
+    return await this.request(async () => await (await send()).value());
   }
 
   private async request<Result>(

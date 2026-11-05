@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `fetch` in the client configuration sends every request through the given implementation.
+- `client.json` offers every operation that answers with a body and resolves to the API's JSON, unchanged, for
+  code that relays NevaBridge answers.
+
+### Changed
+
+- `X-Actor-Name` carries a display name of printable ASCII without `%` as it is. Other names stay percent-encoded.
+  NevaBridge decodes both, so the stored name does not change.
+
 ## 0.1.0
 
 The vendored contract moves to the revision that runs Generic Intake turns in the background.
