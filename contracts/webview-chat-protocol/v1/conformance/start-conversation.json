@@ -1,0 +1,114 @@
+{
+  "name": "start-conversation",
+  "description": "The host adds the product, the reporter identity and roles, and the application context the page cannot set.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821",
+    "actorName": "Dana Example",
+    "actorRoles": ["customer"],
+    "applicationContext": {
+      "accountId": "acct-4821",
+      "screen": "invoice-editor"
+    }
+  },
+  "startedConversations": [],
+  "request": {
+    "id": "r1",
+    "type": "startConversation",
+    "text": "Saving an invoice shows an error.",
+    "category": "bug_report"
+  },
+  "apiCalls": [
+    {
+      "operationId": "startConversation",
+      "method": "POST",
+      "path": "/v1/products/product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111/conversations",
+      "headers": {
+        "X-Actor-Id": "user-4821",
+        "X-Actor-Name": "Dana Example",
+        "X-Actor-Roles": "customer"
+      },
+      "body": {
+        "userMessage": {
+          "content": "Saving an invoice shows an error."
+        },
+        "category": "bug_report",
+        "applicationContext": {
+          "accountId": "acct-4821",
+          "screen": "invoice-editor"
+        }
+      },
+      "response": {
+        "status": 201,
+        "body": {
+          "userMessage": {
+            "id": "message-0001",
+            "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+            "role": "user",
+            "content": "Saving an invoice shows an error.",
+            "createdAt": "2026-09-30T10:00:00.000Z"
+          },
+          "assistantMessage": {
+            "id": "message-0002",
+            "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+            "role": "assistant",
+            "content": "Sorry about that. Which error message do you see?",
+            "createdAt": "2026-09-30T10:00:02.000Z"
+          },
+          "reports": [
+            {
+              "id": "report-5d2e7a90-1c3b-4f6e-8a1d-2b3c4d5e6f70",
+              "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+              "templateId": "system:bug_report",
+              "templateVersion": "1",
+              "category": "bug_report",
+              "status": "reporting_in_progress",
+              "structured": {
+                "summary": "Saving an invoice fails"
+              },
+              "createdAt": "2026-09-30T10:00:01.000Z",
+              "updatedAt": "2026-09-30T10:00:02.000Z"
+            }
+          ],
+          "displayTitle": "Invoice save fails"
+        }
+      }
+    }
+  ],
+  "response": {
+    "id": "r1",
+    "ok": true,
+    "result": {
+      "userMessage": {
+        "id": "message-0001",
+        "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+        "role": "user",
+        "content": "Saving an invoice shows an error.",
+        "createdAt": "2026-09-30T10:00:00.000Z"
+      },
+      "assistantMessage": {
+        "id": "message-0002",
+        "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+        "role": "assistant",
+        "content": "Sorry about that. Which error message do you see?",
+        "createdAt": "2026-09-30T10:00:02.000Z"
+      },
+      "reports": [
+        {
+          "id": "report-5d2e7a90-1c3b-4f6e-8a1d-2b3c4d5e6f70",
+          "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+          "templateId": "system:bug_report",
+          "templateVersion": "1",
+          "category": "bug_report",
+          "status": "reporting_in_progress",
+          "structured": {
+            "summary": "Saving an invoice fails"
+          },
+          "createdAt": "2026-09-30T10:00:01.000Z",
+          "updatedAt": "2026-09-30T10:00:02.000Z"
+        }
+      ],
+      "displayTitle": "Invoice save fails"
+    }
+  }
+}

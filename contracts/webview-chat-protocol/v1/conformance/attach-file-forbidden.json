@@ -1,0 +1,49 @@
+{
+  "name": "attach-file-forbidden",
+  "description": "Attachments were revoked while the chat was open. The API's 403 reaches the page, which hides the control.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": ["conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"],
+  "userFile": {
+    "fileName": "crash.log",
+    "sizeBytes": 2048
+  },
+  "request": {
+    "id": "r4",
+    "type": "attachFile",
+    "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"
+  },
+  "apiCalls": [
+    {
+      "operationId": "requestAttachmentUpload",
+      "method": "POST",
+      "path": "/v1/conversations/conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c/actions/request-attachment-upload",
+      "headers": {
+        "X-Actor-Id": "user-4821"
+      },
+      "body": {
+        "fileName": "crash.log",
+        "sizeBytes": 2048
+      },
+      "response": {
+        "status": 403,
+        "body": {
+          "error": "Forbidden",
+          "message": "Feature \"chatAttachments\" is not available for this tenant."
+        }
+      }
+    }
+  ],
+  "response": {
+    "id": "r4",
+    "ok": false,
+    "error": {
+      "name": "Forbidden",
+      "message": "Feature \"chatAttachments\" is not available for this tenant.",
+      "status": 403,
+      "retryable": false
+    }
+  }
+}

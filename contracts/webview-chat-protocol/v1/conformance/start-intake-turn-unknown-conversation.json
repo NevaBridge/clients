@@ -1,0 +1,28 @@
+{
+  "name": "start-intake-turn-unknown-conversation",
+  "description": "The host refuses a turn for a conversation the page did not start, without calling the API.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": [],
+  "startedTurns": [],
+  "request": {
+    "id": "r5",
+    "type": "startIntakeTurn",
+    "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+    "text": "Hello",
+    "expectedRevision": 0
+  },
+  "apiCalls": [],
+  "response": {
+    "id": "r5",
+    "ok": false,
+    "error": {
+      "name": "UnknownConversation",
+      "message": "This conversation was not started in this chat.",
+      "status": null,
+      "retryable": false
+    }
+  }
+}

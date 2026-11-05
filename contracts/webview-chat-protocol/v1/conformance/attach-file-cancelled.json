@@ -1,0 +1,26 @@
+{
+  "name": "attach-file-cancelled",
+  "description": "The user closes the file picker without choosing a file. No API call is made.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": ["conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"],
+  "userFile": null,
+  "request": {
+    "id": "r4",
+    "type": "attachFile",
+    "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"
+  },
+  "apiCalls": [],
+  "response": {
+    "id": "r4",
+    "ok": false,
+    "error": {
+      "name": "Cancelled",
+      "message": "No file was chosen.",
+      "status": null,
+      "retryable": false
+    }
+  }
+}

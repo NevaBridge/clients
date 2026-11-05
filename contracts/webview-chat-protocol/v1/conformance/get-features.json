@@ -1,0 +1,38 @@
+{
+  "name": "get-features",
+  "description": "The host reads the tenant's effective feature entitlements.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": [],
+  "request": {
+    "id": "r0",
+    "type": "getFeatures"
+  },
+  "apiCalls": [
+    {
+      "operationId": "getFeatures",
+      "method": "GET",
+      "path": "/v1/features",
+      "headers": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "chatAttachments": true,
+          "knowledgebase": false,
+          "genericIntake": false
+        }
+      }
+    }
+  ],
+  "response": {
+    "id": "r0",
+    "ok": true,
+    "result": {
+      "chatAttachments": true,
+      "knowledgebase": false,
+      "genericIntake": false
+    }
+  }
+}

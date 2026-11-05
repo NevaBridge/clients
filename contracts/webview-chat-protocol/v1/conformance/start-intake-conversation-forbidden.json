@@ -1,0 +1,47 @@
+{
+  "name": "start-intake-conversation-forbidden",
+  "description": "Without the genericIntake entitlement the API answers 403, which the host relays like any API error.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": [],
+  "startedTurns": [],
+  "request": {
+    "id": "r2",
+    "type": "startIntakeConversation",
+    "text": "Hello"
+  },
+  "apiCalls": [
+    {
+      "operationId": "startIntakeConversation",
+      "method": "POST",
+      "path": "/v1/products/product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111/intake-conversations",
+      "headers": {
+        "X-Actor-Id": "user-4821"
+      },
+      "body": {
+        "userMessage": {
+          "content": "Hello"
+        }
+      },
+      "response": {
+        "status": 403,
+        "body": {
+          "error": "Forbidden",
+          "message": "This tenant does not have the genericIntake feature."
+        }
+      }
+    }
+  ],
+  "response": {
+    "id": "r2",
+    "ok": false,
+    "error": {
+      "name": "Forbidden",
+      "message": "This tenant does not have the genericIntake feature.",
+      "status": 403,
+      "retryable": false
+    }
+  }
+}

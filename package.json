@@ -12,7 +12,7 @@
     "sdk:generate": "sdk/generation/generate-typescript.sh",
     "sdk:check": "bun run --filter @nevabridge/sdk check",
     "test": "bun test ./tests",
-    "format:check": "prettier --check scripts tests package.json .prettierrc.json contracts/pin.json",
+    "format:check": "prettier --check scripts tests package.json .prettierrc.json contracts/pin.json contracts/webview-chat-protocol.pin.json",
     "check": "bun run contract:verify && bun run format:check && bun run test && bun run sdk:check && bun run widgets:check && bun run samples:check",
     "widgets:check": "bun run --filter @nevabridge/electron check",
     "samples:check": "bun run --cwd samples/electron-desktop typecheck && bun run --cwd samples/electron-desktop format:check"

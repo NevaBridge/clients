@@ -1,0 +1,26 @@
+{
+  "name": "unsupported-request",
+  "description": "A request type this major does not define gets UnsupportedRequest.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": ["conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"],
+  "request": {
+    "id": "r9",
+    "type": "deleteConversation",
+    "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"
+  },
+  "requestIsValid": false,
+  "apiCalls": [],
+  "response": {
+    "id": "r9",
+    "ok": false,
+    "error": {
+      "name": "UnsupportedRequest",
+      "message": "This request type is not supported.",
+      "status": null,
+      "retryable": false
+    }
+  }
+}

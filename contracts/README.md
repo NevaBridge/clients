@@ -32,3 +32,16 @@ confirms the pair.
 2. Replace this directory's copy with it verbatim. Do not reformat it or add a trailing newline.
 3. Set `commit` and `sha256` in `pin.json` to the upstream commit and the new file's checksum.
 4. Run `bun run check`. Regeneration produces the client diff. Review it like any other code.
+
+## The webview chat bridge protocol
+
+`webview-chat-protocol/` is the protocol between the NevaBridge web chat page and the desktop host
+bridges in `widgets/`: `PROTOCOL.md`, the JSON Schemas of its messages, and the conformance cases
+both bridges must pass. The NevaBridge service repository owns it, next to the page that speaks it.
+Treat it like the API contract: never edit it by hand.
+
+`webview-chat-protocol.pin.json` records the upstream commit, the directory's path there, and the
+SHA-256 of every file. `bun run contract:verify` fails when a file changed, is missing, or is not
+listed. To refresh, replace the whole directory with the one at a reviewed upstream commit, set
+`commit` and every checksum in the pin, and run `bun run check`. The Electron and WPF conformance
+suites then run every case in the new revision.

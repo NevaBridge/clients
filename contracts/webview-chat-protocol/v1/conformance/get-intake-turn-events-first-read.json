@@ -1,0 +1,68 @@
+{
+  "name": "get-intake-turn-events-first-read",
+  "description": "The first read of a turn sends no after; the host always sends wait=20.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": ["conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"],
+  "startedTurns": ["intaketurn-3b7c9e10-4d2a-4f61-9b8e-0a1b2c3d4e5f"],
+  "request": {
+    "id": "r3",
+    "type": "getIntakeTurnEvents",
+    "turnId": "intaketurn-3b7c9e10-4d2a-4f61-9b8e-0a1b2c3d4e5f"
+  },
+  "apiCalls": [
+    {
+      "operationId": "getIntakeTurnEvents",
+      "method": "GET",
+      "path": "/v1/intake-turns/intaketurn-3b7c9e10-4d2a-4f61-9b8e-0a1b2c3d4e5f/events?wait=20",
+      "headers": {},
+      "response": {
+        "status": 200,
+        "body": {
+          "events": [
+            {
+              "type": "status",
+              "phase": "checking"
+            },
+            {
+              "type": "status",
+              "phase": "tool",
+              "tool": "searchKnowledge"
+            },
+            {
+              "type": "text",
+              "delta": "You can change them under "
+            }
+          ],
+          "cursor": "3",
+          "finished": false
+        }
+      }
+    }
+  ],
+  "response": {
+    "id": "r3",
+    "ok": true,
+    "result": {
+      "events": [
+        {
+          "type": "status",
+          "phase": "checking"
+        },
+        {
+          "type": "status",
+          "phase": "tool",
+          "tool": "searchKnowledge"
+        },
+        {
+          "type": "text",
+          "delta": "You can change them under "
+        }
+      ],
+      "cursor": "3",
+      "finished": false
+    }
+  }
+}

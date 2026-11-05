@@ -1,0 +1,84 @@
+{
+  "name": "attach-file",
+  "description": "The host shows the file picker, then requests the upload, PUTs the bytes, and confirms.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": ["conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"],
+  "userFile": {
+    "fileName": "crash.log",
+    "sizeBytes": 2048
+  },
+  "request": {
+    "id": "r4",
+    "type": "attachFile",
+    "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"
+  },
+  "apiCalls": [
+    {
+      "operationId": "requestAttachmentUpload",
+      "method": "POST",
+      "path": "/v1/conversations/conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c/actions/request-attachment-upload",
+      "headers": {
+        "X-Actor-Id": "user-4821"
+      },
+      "body": {
+        "fileName": "crash.log",
+        "sizeBytes": 2048
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "attachmentId": "attachment-0f1e2d3c-4b5a-4968-8776-655443322110",
+          "uploadUrl": "https://uploads.example.com/presigned/crash.log?signature=abc",
+          "expiresAt": "2026-09-30T10:18:00.000Z"
+        }
+      }
+    },
+    {
+      "operationId": null,
+      "method": "PUT",
+      "url": "https://uploads.example.com/presigned/crash.log?signature=abc",
+      "headers": {
+        "If-None-Match": "*"
+      },
+      "bodySizeBytes": 2048,
+      "response": {
+        "status": 200
+      }
+    },
+    {
+      "operationId": "confirmAttachmentUpload",
+      "method": "POST",
+      "path": "/v1/conversations/conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c/actions/confirm-attachment-upload",
+      "headers": {},
+      "body": {
+        "attachmentId": "attachment-0f1e2d3c-4b5a-4968-8776-655443322110"
+      },
+      "response": {
+        "status": 200,
+        "body": {
+          "id": "attachment-0f1e2d3c-4b5a-4968-8776-655443322110",
+          "fileName": "crash.log",
+          "kind": "text",
+          "sizeBytes": 2048,
+          "uploadedBy": "api:user-4821",
+          "uploadedAt": "2026-09-30T10:03:05.000Z"
+        }
+      }
+    }
+  ],
+  "response": {
+    "id": "r4",
+    "ok": true,
+    "result": {
+      "id": "attachment-0f1e2d3c-4b5a-4968-8776-655443322110",
+      "fileName": "crash.log",
+      "kind": "text",
+      "sizeBytes": 2048,
+      "uploadedBy": "api:user-4821",
+      "uploadedAt": "2026-09-30T10:03:05.000Z"
+    }
+  }
+}

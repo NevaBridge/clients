@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "webview-chat bridge protocol v1 conformance case",
+  "description": "One request the page sends, the API calls a conforming host makes for it (with the answers the API gives), and the response the host must send back. See PROTOCOL.md, Conformance cases.",
+  "type": "object",
+  "properties": {
+    "name": {"type": "string", "pattern": "^[a-z0-9-]+$"},
+    "description": {"type": "string"},
+    "host": {
+      "type": "object",
+      "description": "What the host application supplies. The page cannot set any of it.",
+      "properties": {
+        "productId": {"type": "string"},
+        "actorId": {"type": "string", "minLength": 1},
+        "actorName": {"type": "string"},
+        "actorRoles": {
+          "type": "array",
+          "items": {"enum": ["anonymous", "customer", "tenant"]}
+        },
+        "applicationContext": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        }
+      },
+      "required": ["productId", "actorId"],
+      "additionalProperties": false
+    },
+    "startedConversations": {
+      "type": "array",
+      "description": "Conversations the page started earlier in this session, as the host tracked them.",
+      "items": {"type": "string"}
+    },
+    "startedTurns": {
+      "type": "array",
+      "description": "Generic Intake turns the host returned earlier in this session: from a start result, an IntakeTurnRunning error, or the activeTurnId of a getConversation result.",
+      "items": {"type": "string"}
+    },
+    "userFile": {
+      "description": "attachFile only: the file the user picks, or null when the user closes the picker.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "fileName": {"type": "string"},
+            "sizeBytes": {"type": "integer", "minimum": 1}
+          },
+          "required": ["fileName", "sizeBytes"],
+          "additionalProperties": false
+        },
+        {"type": "null"}
+      ]
+    },
+    "request": {
+      "type": "object",
+      "description": "The request as the page sends it, parsed from its JSON string."
+    },
+    "requestIsValid": {
+      "const": false,
+      "description": "Present when the request deliberately fails the messages schema."
+    },
+    "apiCalls": {
+      "type": "array",
+      "description": "Every HTTP call the host makes, in order. A host makes no other call.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "operationId": {
+            "type": ["string", "null"],
+            "description": "The API operation, or null for the PUT to a presigned upload URL."
+          },
+          "method": {"enum": ["GET", "POST", "PUT"]},
+          "path": {
+            "type": "string",
+            "description": "API path, relative to the API base URL."
+          },
+          "url": {
+            "type": "string",
+            "description": "Absolute URL, for the presigned upload only."
+          },
+          "headers": {
+            "type": "object",
+            "description": "Every X-Actor-* and If-None-Match header the call carries, with its exact value. A call carries none that are not listed. Authorization is always the tenant API key and is not listed.",
+            "additionalProperties": {"type": "string"}
+          },
+          "body": {
+            "description": "The exact JSON body. Absent when the call has none."
+          },
+          "bodySizeBytes": {
+            "type": "integer",
+            "description": "Presigned upload only: the number of bytes sent."
+          },
+          "response": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {"type": "integer"},
+                  "body": {}
+                },
+                "required": ["status"],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {"networkFailure": {"const": true}},
+                "required": ["networkFailure"],
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "required": ["operationId", "method", "headers", "response"],
+        "additionalProperties": false
+      }
+    },
+    "response": {
+      "type": "object",
+      "description": "The response the host sends back, validated by messages.schema.json#/$defs/Response."
+    }
+  },
+  "required": [
+    "name",
+    "description",
+    "host",
+    "request",
+    "apiCalls",
+    "response"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "webview-chat bridge protocol, version 1",
+  "description": "Every message between the webview-chat page and its host is a JSON string. The page sends a Request; the host answers each Request with exactly one Response carrying the same id. Results use the NevaBridge tenant integration API's own JSON shapes, named in x-result-schema (components of api/openapi/nevabridge-v1.yaml). Request types marked x-optional were added within major 1; a host that predates them answers UnsupportedRequest.",
+  "$defs": {
+    "RequestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "ConversationId": {
+      "type": "string",
+      "pattern": "^conversation-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "ReportId": {
+      "type": "string",
+      "pattern": "^report-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "TurnId": {
+      "type": "string",
+      "pattern": "^intaketurn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "MessageText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32768
+    },
+    "StartConversationRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "startConversation"
+        },
+        "text": {
+          "$ref": "#/$defs/MessageText"
+        },
+        "category": {
+          "enum": ["bug_report", "feature_request", "support_request"]
+        }
+      },
+      "required": ["id", "type", "text"],
+      "additionalProperties": false,
+      "x-api-operation": "startConversation",
+      "x-result-schema": "ConversationTurn"
+    },
+    "AppendMessageRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "appendMessage"
+        },
+        "conversationId": {
+          "$ref": "#/$defs/ConversationId"
+        },
+        "text": {
+          "$ref": "#/$defs/MessageText"
+        }
+      },
+      "required": ["id", "type", "conversationId", "text"],
+      "additionalProperties": false,
+      "x-api-operation": "appendMessage",
+      "x-result-schema": "ConversationTurn"
+    },
+    "SubmitReportRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "submitReport"
+        },
+        "conversationId": {
+          "$ref": "#/$defs/ConversationId"
+        },
+        "reportId": {
+          "$ref": "#/$defs/ReportId"
+        }
+      },
+      "required": ["id", "type", "conversationId", "reportId"],
+      "additionalProperties": false,
+      "x-api-operation": "submitReport",
+      "x-result-schema": "SubmitReportResult"
+    },
+    "GetFeaturesRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "getFeatures"
+        }
+      },
+      "required": ["id", "type"],
+      "additionalProperties": false,
+      "x-api-operation": "getFeatures",
+      "x-result-schema": "Features"
+    },
+    "AttachFileRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "attachFile"
+        },
+        "conversationId": {
+          "$ref": "#/$defs/ConversationId"
+        }
+      },
+      "required": ["id", "type", "conversationId"],
+      "additionalProperties": false,
+      "x-api-operation": "requestAttachmentUpload",
+      "x-result-schema": "Attachment"
+    },
+    "StartIntakeConversationRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "startIntakeConversation"
+        },
+        "text": {
+          "$ref": "#/$defs/MessageText"
+        }
+      },
+      "required": ["id", "type", "text"],
+      "additionalProperties": false,
+      "x-optional": true,
+      "x-api-operation": "startIntakeConversation",
+      "x-result-schema": "IntakeConversationStarted"
+    },
+    "StartIntakeTurnRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "startIntakeTurn"
+        },
+        "conversationId": {
+          "$ref": "#/$defs/ConversationId"
+        },
+        "text": {
+          "$ref": "#/$defs/MessageText"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "finish": {
+          "type": "boolean"
+        }
+      },
+      "required": ["id", "type", "conversationId", "text", "expectedRevision"],
+      "additionalProperties": false,
+      "x-optional": true,
+      "x-api-operation": "startIntakeTurn",
+      "x-result-schema": "IntakeTurnStarted"
+    },
+    "GetIntakeTurnEventsRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "getIntakeTurnEvents"
+        },
+        "turnId": {
+          "$ref": "#/$defs/TurnId"
+        },
+        "after": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        }
+      },
+      "required": ["id", "type", "turnId"],
+      "additionalProperties": false,
+      "x-optional": true,
+      "x-api-operation": "getIntakeTurnEvents",
+      "x-result-schema": "IntakeTurnEvents"
+    },
+    "GetConversationRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "getConversation"
+        },
+        "conversationId": {
+          "$ref": "#/$defs/ConversationId"
+        }
+      },
+      "required": ["id", "type", "conversationId"],
+      "additionalProperties": false,
+      "x-optional": true,
+      "x-api-operation": "getConversation",
+      "x-result-schema": "ConversationDetail"
+    },
+    "Request": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StartConversationRequest"
+        },
+        {
+          "$ref": "#/$defs/AppendMessageRequest"
+        },
+        {
+          "$ref": "#/$defs/SubmitReportRequest"
+        },
+        {
+          "$ref": "#/$defs/GetFeaturesRequest"
+        },
+        {
+          "$ref": "#/$defs/AttachFileRequest"
+        },
+        {
+          "$ref": "#/$defs/StartIntakeConversationRequest"
+        },
+        {
+          "$ref": "#/$defs/StartIntakeTurnRequest"
+        },
+        {
+          "$ref": "#/$defs/GetIntakeTurnEventsRequest"
+        },
+        {
+          "$ref": "#/$defs/GetConversationRequest"
+        }
+      ]
+    },
+    "SuccessResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "ok": {
+          "const": true
+        },
+        "result": {
+          "type": "object",
+          "description": "The API's JSON for the request's x-result-schema."
+        }
+      },
+      "required": ["id", "ok", "result"],
+      "additionalProperties": false
+    },
+    "BridgeError": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The API's `error` name when the API answered with one; otherwise one of the bridge names listed in PROTOCOL.md."
+        },
+        "message": {
+          "type": "string"
+        },
+        "status": {
+          "type": ["integer", "null"],
+          "description": "The HTTP status of the failing API or upload call, or null when no HTTP response exists."
+        },
+        "retryable": {
+          "type": "boolean"
+        },
+        "turnId": {
+          "$ref": "#/$defs/TurnId",
+          "description": "Present only when the API answered 409 IntakeTurnRunning: the running turn, to read instead of sending again."
+        }
+      },
+      "required": ["name", "message", "status", "retryable"],
+      "additionalProperties": false
+    },
+    "ErrorResponse": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "ok": {
+          "const": false
+        },
+        "error": {
+          "$ref": "#/$defs/BridgeError"
+        }
+      },
+      "required": ["id", "ok", "error"],
+      "additionalProperties": false
+    },
+    "Response": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SuccessResponse"
+        },
+        {
+          "$ref": "#/$defs/ErrorResponse"
+        }
+      ]
+    }
+  }
+}

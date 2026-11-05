@@ -1,5 +1,5 @@
 import {describe, expect, it} from "bun:test";
-import {mkdtempSync, mkdirSync, writeFileSync} from "node:fs";
+import {mkdtempSync, mkdirSync, rmSync, writeFileSync} from "node:fs";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 
@@ -14,6 +14,12 @@ const CONTRACT_BODY = "openapi: 3.1.0\n";
 // SHA-256 of CONTRACT_BODY, computed independently of the script under test.
 const CONTRACT_SHA256 =
   "f39db8e8ede3dc2457c613e2a304e6d478f6e5ec660e4746464f41e76ac77006";
+
+const PROTOCOL_FILE = "v1/messages.schema.json";
+const PROTOCOL_BODY = "{}\n";
+// SHA-256 of PROTOCOL_BODY, computed independently of the script under test.
+const PROTOCOL_SHA256 =
+  "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356";
 
 type PinOverrides = Partial<{
   commit: string;
@@ -48,6 +54,21 @@ function createRoot(options: {
       ),
     );
   }
+  const protocolRoot = join(root, "contracts", "webview-chat-protocol");
+  mkdirSync(join(protocolRoot, "v1"), {recursive: true});
+  writeFileSync(join(protocolRoot, PROTOCOL_FILE), PROTOCOL_BODY);
+  writeFileSync(
+    join(root, "contracts", "webview-chat-protocol.pin.json"),
+    JSON.stringify(
+      {
+        commit: "9f3c2b1a0e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b",
+        path: "frontend/webview-chat/protocol",
+        files: {[PROTOCOL_FILE]: PROTOCOL_SHA256},
+      },
+      null,
+      2,
+    ),
+  );
   return root;
 }
 
@@ -115,5 +136,41 @@ describe("contract pin verification", () => {
     const result = await runVerification(root);
 
     expect(result.exitCode).not.toBe(0);
+  });
+});
+
+describe("webview chat protocol pin verification", () => {
+  const protocolRoot = (root: string): string =>
+    join(root, "contracts", "webview-chat-protocol");
+
+  it("rejects a protocol file that was edited after pinning", async () => {
+    const root = createRoot({});
+    writeFileSync(join(protocolRoot(root), PROTOCOL_FILE), '{"edited":1}\n');
+
+    const result = await runVerification(root);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.output).toContain(PROTOCOL_FILE);
+    expect(result.output).toContain("9f3c2b1a0e8d7c6b5a4f3e2d1c0b9a8f7e6d5c4b");
+  });
+
+  it("rejects a protocol file the pin does not list", async () => {
+    const root = createRoot({});
+    writeFileSync(join(protocolRoot(root), "v1", "extra-case.json"), "{}\n");
+
+    const result = await runVerification(root);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.output).toContain("v1/extra-case.json");
+  });
+
+  it("rejects a pinned protocol file that is missing", async () => {
+    const root = createRoot({});
+    rmSync(join(protocolRoot(root), PROTOCOL_FILE));
+
+    const result = await runVerification(root);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.output).toContain(PROTOCOL_FILE);
   });
 });

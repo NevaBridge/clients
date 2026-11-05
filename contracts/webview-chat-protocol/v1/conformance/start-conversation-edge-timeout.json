@@ -1,0 +1,45 @@
+{
+  "name": "start-conversation-edge-timeout",
+  "description": "A gateway answer without an error name becomes EdgeFailure, which is retryable.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": [],
+  "request": {
+    "id": "r1",
+    "type": "startConversation",
+    "text": "Saving an invoice shows an error."
+  },
+  "apiCalls": [
+    {
+      "operationId": "startConversation",
+      "method": "POST",
+      "path": "/v1/products/product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111/conversations",
+      "headers": {
+        "X-Actor-Id": "user-4821"
+      },
+      "body": {
+        "userMessage": {
+          "content": "Saving an invoice shows an error."
+        }
+      },
+      "response": {
+        "status": 504,
+        "body": {
+          "message": "Endpoint request timed out"
+        }
+      }
+    }
+  ],
+  "response": {
+    "id": "r1",
+    "ok": false,
+    "error": {
+      "name": "EdgeFailure",
+      "message": "Endpoint request timed out",
+      "status": 504,
+      "retryable": true
+    }
+  }
+}

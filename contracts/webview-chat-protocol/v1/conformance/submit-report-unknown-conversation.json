@@ -1,0 +1,26 @@
+{
+  "name": "submit-report-unknown-conversation",
+  "description": "The host refuses to submit a report of a conversation the page did not start.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": [],
+  "request": {
+    "id": "r3",
+    "type": "submitReport",
+    "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+    "reportId": "report-5d2e7a90-1c3b-4f6e-8a1d-2b3c4d5e6f70"
+  },
+  "apiCalls": [],
+  "response": {
+    "id": "r3",
+    "ok": false,
+    "error": {
+      "name": "UnknownConversation",
+      "message": "This conversation was not started in this chat.",
+      "status": null,
+      "retryable": false
+    }
+  }
+}
