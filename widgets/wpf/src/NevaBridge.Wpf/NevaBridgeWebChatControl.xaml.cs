@@ -97,22 +97,8 @@ public partial class NevaBridgeWebChatControl : UserControl
         core.Navigate(_pageUrl.AbsoluteUri);
     }
 
-    private Task<PickedFile?> PickFileAsync(CancellationToken cancellationToken)
-    {
-        Microsoft.Win32.OpenFileDialog dialog = new()
-        {
-            Title = "Attach a file",
-            Filter = "Screenshots, videos and logs|*.png;*.jpg;*.jpeg;*.gif;*.webp;*.mp4;*.mov;*.webm;*.txt;*.log;*.md;*.csv;*.json;*.xml;*.yaml;*.yml",
-            CheckFileExists = true,
-        };
-        if (dialog.ShowDialog(Window.GetWindow(this)) != true)
-        {
-            return Task.FromResult<PickedFile?>(null);
-        }
-
-        FileInfo file = new(dialog.FileName);
-        return Task.FromResult<PickedFile?>(new PickedFile(file.Name, file.Length, file.OpenRead));
-    }
+    private Task<PickedFile?> PickFileAsync(CancellationToken cancellationToken) =>
+        Task.FromResult(FilePicker.Pick(Window.GetWindow(this)));
 
     private void KeepNavigationOnThePage(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {

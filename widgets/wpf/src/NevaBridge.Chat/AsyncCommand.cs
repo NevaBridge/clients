@@ -21,8 +21,11 @@ public sealed class AsyncCommand : ICommand
     public async void Execute(object? parameter)
     {
         // WPF invokes commands as fire-and-forget; the view model reports failures itself.
-        await _execute();
+        await ExecuteAsync();
     }
+
+    /// <summary>Runs the action and completes when it has, for callers that wait for it.</summary>
+    public Task ExecuteAsync() => _execute();
 
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }

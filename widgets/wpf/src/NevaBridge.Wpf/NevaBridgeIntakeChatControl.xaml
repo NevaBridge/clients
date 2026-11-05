@@ -1,0 +1,208 @@
+<UserControl x:Class="NevaBridge.Wpf.NevaBridgeIntakeChatControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:local="clr-namespace:NevaBridge.Chat;assembly=NevaBridge.Chat"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=local:IntakeChatViewModel}"
+             d:DesignWidth="420" d:DesignHeight="640"
+             FontFamily="Segoe UI" FontSize="13">
+    <UserControl.Resources>
+        <!-- Hosts can restyle the control by defining these keys in their own resources. -->
+        <SolidColorBrush x:Key="NevaBridge.AccentBrush" Color="#2F5BD3" />
+        <SolidColorBrush x:Key="NevaBridge.ReporterBubbleBrush" Color="#E6ECFB" />
+        <SolidColorBrush x:Key="NevaBridge.AssistantBubbleBrush" Color="#F3F3F3" />
+        <SolidColorBrush x:Key="NevaBridge.BorderBrush" Color="#D9D9D9" />
+        <SolidColorBrush x:Key="NevaBridge.ErrorBrush" Color="#FDECEC" />
+        <SolidColorBrush x:Key="NevaBridge.SuccessBrush" Color="#E8F5EC" />
+        <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
+
+        <Style x:Key="NevaBridge.PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource NevaBridge.AccentBrush}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="14,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Shows a banner only while its text is set. -->
+        <Style x:Key="NevaBridge.Banner" TargetType="Border">
+            <Setter Property="Margin" Value="12,0,12,8" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Tag, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Border BorderBrush="{DynamicResource NevaBridge.BorderBrush}" BorderThickness="1" Background="White">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Header -->
+            <TextBlock Grid.Row="0" Margin="12,10" FontSize="15" FontWeight="SemiBold"
+                       Text="{x:Static local:IntakeChatText.Title}" />
+
+            <!-- Error banner, with Check again when a reply could not be loaded -->
+            <Border Grid.Row="1" Style="{StaticResource NevaBridge.Banner}" Tag="{Binding ErrorText}"
+                    Background="{DynamicResource NevaBridge.ErrorBrush}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="10,3" Content="{x:Static local:IntakeChatText.CheckAgain}"
+                            Command="{Binding CheckAgainCommand}"
+                            Visibility="{Binding CanCheckAgain, Converter={StaticResource VisibleWhenTrue}}" />
+                    <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+
+            <!-- Transcript -->
+            <ScrollViewer x:Name="TranscriptScroller" Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="12,0">
+                <StackPanel>
+                    <TextBlock Margin="0,8" Foreground="#666" TextWrapping="Wrap" Text="{x:Static local:IntakeChatText.Lead}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Messages.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <ItemsControl ItemsSource="{Binding Messages}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type local:ChatMessageItem}">
+                                <Border x:Name="Bubble" Margin="0,4" Padding="10,7" CornerRadius="8" MaxWidth="340"
+                                        HorizontalAlignment="Left" Background="{DynamicResource NevaBridge.AssistantBubbleBrush}">
+                                    <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                                             BorderThickness="0" Background="Transparent" Padding="0" />
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding IsFromReporter}" Value="True">
+                                        <Setter TargetName="Bubble" Property="HorizontalAlignment" Value="Right" />
+                                        <Setter TargetName="Bubble" Property="Background" Value="{DynamicResource NevaBridge.ReporterBubbleBrush}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- The running turn: what the assistant is doing, then the reply as it is written -->
+                    <Border Margin="0,4" Padding="10,7" CornerRadius="8" MaxWidth="340" HorizontalAlignment="Left"
+                            Background="{DynamicResource NevaBridge.AssistantBubbleBrush}"
+                            Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhenTrue}}">
+                        <StackPanel>
+                            <TextBlock Foreground="#666" FontStyle="Italic" Text="{Binding ProgressText}" />
+                            <TextBlock Text="{Binding LiveReply}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- After the end: what was passed on to the team -->
+                    <Border Margin="0,10,0,8" Padding="10,8" CornerRadius="4" Background="{DynamicResource NevaBridge.SuccessBrush}"
+                            Visibility="{Binding IsEnded, Converter={StaticResource VisibleWhenTrue}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding EndedText}" TextWrapping="Wrap" FontWeight="SemiBold" />
+                            <ItemsControl ItemsSource="{Binding FiledReports}" Margin="0,4,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type local:FiledReportItem}">
+                                        <StackPanel Margin="0,4">
+                                            <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                            <TextBlock Foreground="#555" TextWrapping="Wrap">
+                                                <Run Text="{Binding Category, Mode=OneWay}" /><Run Text=" · " /><Run Text="{Binding Status, Mode=OneWay}" />
+                                            </TextBlock>
+                                            <TextBlock Foreground="#555" TextWrapping="Wrap" Text="{Binding Reason}">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Reason}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Attachment notice -->
+            <Border Grid.Row="3" Margin="12,6,12,0" Style="{StaticResource NevaBridge.Banner}" Tag="{Binding AttachmentNotice}"
+                    Background="{DynamicResource NevaBridge.ErrorBrush}">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="10,3"
+                            Content="{x:Static local:IntakeChatText.RefreshFiles}" Command="{Binding RefreshFilesCommand}"
+                            Visibility="{Binding FilesUnknown, Converter={StaticResource VisibleWhenTrue}}" />
+                    <TextBlock Text="{Binding AttachmentNotice}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                </DockPanel>
+            </Border>
+
+            <!-- Attached files -->
+            <ItemsControl Grid.Row="4" Margin="12,6,12,0" ItemsSource="{Binding Attachments}"
+                          AutomationProperties.Name="{x:Static local:IntakeChatText.AttachedFiles}"
+                          Visibility="{Binding OffersAttachments, Converter={StaticResource VisibleWhenTrue}}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type local:AttachmentItem}">
+                        <Border Margin="0,0,6,4" Padding="8,2,2,2" CornerRadius="10" BorderThickness="1"
+                                BorderBrush="{DynamicResource NevaBridge.BorderBrush}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding FileName}" VerticalAlignment="Center" />
+                                <Button Margin="4,0,0,0" Padding="5,0" Content="✕" BorderThickness="0" Background="Transparent"
+                                        Command="{Binding RemoveCommand}"
+                                        AutomationProperties.Name="{Binding FileName, StringFormat={x:Static local:IntakeChatText.RemoveNamedFile}}"
+                                        ToolTip="{x:Static local:IntakeChatText.RemoveFile}" />
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <!-- Composer -->
+            <Grid Grid.Row="5" Margin="12,10,12,12">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBox x:Name="DraftBox" Grid.Column="0" MinHeight="54" MaxHeight="140" Padding="4"
+                         AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                         Text="{Binding Draft, UpdateSourceTrigger=PropertyChanged}"
+                         IsEnabled="{Binding IsOpen}"
+                         ToolTip="{x:Static local:IntakeChatText.SendTooltip}"
+                         PreviewKeyDown="OnDraftPreviewKeyDown" />
+                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
+                    <Button Content="{x:Static local:IntakeChatText.Send}" Style="{StaticResource NevaBridge.PrimaryButton}" Command="{Binding SendCommand}" />
+                    <Button Content="{x:Static local:IntakeChatText.AttachFile}" Margin="0,6,0,0" Padding="10,6" Command="{Binding AttachCommand}"
+                            Visibility="{Binding OffersAttachments, Converter={StaticResource VisibleWhenTrue}}" />
+                    <Button Content="{x:Static local:IntakeChatText.Finish}" Margin="0,6,0,0" Padding="10,6" Command="{Binding FinishCommand}"
+                            ToolTipService.ShowOnDisabled="True"
+                            ToolTip="{Binding FinishHint, TargetNullValue={x:Static local:IntakeChatText.FinishTooltip}}" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</UserControl>

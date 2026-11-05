@@ -32,6 +32,54 @@ public sealed record StartIntakeConversationRequest(UserMessage UserMessage)
 {
     /// <summary>The application's own context, stored with the conversation and shown in triage.</summary>
     public IReadOnlyDictionary<string, string>? ApplicationContext { get; init; }
+
+    /// <summary>
+    /// How the team can reach the reporter, when the application already knows it. The assistant
+    /// then does not ask for it.
+    /// </summary>
+    public ReporterContact? ReporterContact { get; init; }
+}
+
+/// <summary>An email address, a phone number or both; at least one must be set.</summary>
+public sealed record ReporterContact
+{
+    public string? Email { get; init; }
+
+    public string? Phone { get; init; }
+}
+
+/// <summary>A started Generic Intake conversation and its first turn, which runs in the background.</summary>
+public sealed record IntakeConversationStarted(string ConversationId, string TurnId);
+
+/// <summary>A started Generic Intake turn, which runs in the background.</summary>
+public sealed record IntakeTurnStarted(string TurnId);
+
+/// <summary>One read of a turn's events. Send <see cref="Cursor"/> as <c>after</c> on the next read.</summary>
+public sealed record IntakeTurnEvents(IReadOnlyList<IntakeTurnEvent> Events, string Cursor, bool Finished);
+
+/// <summary>
+/// One event of a turn: <c>status</c> (<see cref="Phase"/>, <see cref="Tool"/>), <c>text</c>
+/// (<see cref="Delta"/>), and the terminal <c>done</c> (<see cref="Revision"/>) or <c>error</c>
+/// (<see cref="Error"/>). Other types may appear later and are ignored.
+/// </summary>
+public sealed record IntakeTurnEvent(string Type)
+{
+    public string? Phase { get; init; }
+
+    public string? Tool { get; init; }
+
+    public string? Delta { get; init; }
+
+    public int? Revision { get; init; }
+
+    public IntakeTurnFailure? Error { get; init; }
+}
+
+/// <summary>Why a turn failed, with the HTTP status the failure would have had as a response.</summary>
+public sealed record IntakeTurnFailure(string Error, string Message, int StatusCode)
+{
+    /// <summary>For ModelInvocationFailed: throttled, timed-out and so on.</summary>
+    public string? Category { get; init; }
 }
 
 /// <summary>The next message of a Generic Intake conversation.</summary>
@@ -125,6 +173,15 @@ public sealed record ConversationDetail(
     public string? DisplayTitle { get; init; }
 
     public string? ReporterDisplayName { get; init; }
+
+    /// <summary>Generic Intake only: send it as the next turn's expected revision.</summary>
+    public int? Revision { get; init; }
+
+    /// <summary>Generic Intake only, while a turn runs: the turn to follow.</summary>
+    public string? ActiveTurnId { get; init; }
+
+    /// <summary>A Generic Intake conversation is closed once it has ended.</summary>
+    public bool IsClosed => Status == "closed";
 }
 
 public sealed record SubmitReportResult(Report Report)

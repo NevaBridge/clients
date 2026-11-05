@@ -3,9 +3,19 @@
 ## Unreleased
 
 The web chat bridge now follows version 1 of the webview chat bridge protocol exactly and passes
-every conformance case of the pinned protocol. The native WPF chat is unchanged.
+every conformance case of the pinned protocol. A native Generic Intake chat joins the native
+classic chat, which is unchanged.
 
 ### Added
+
+- `NevaBridgeIntakeChatControl` with `IntakeChatViewModel`: a native Generic Intake chat. It follows
+  each turn as it runs, offers Finish, lists the filed reports once the conversation has ended,
+  and attaches, lists and removes files when given a file picker.
+- `INevaBridgeIntakeConversations`, the operations the Generic Intake chat needs, separate from
+  `INevaBridgeConversations` so existing implementations keep compiling. The sample's
+  `NevaBridgeClient` implements it.
+- `ReporterContact` on `StartIntakeConversationRequest`, and `Revision`, `ActiveTurnId` and
+  `IsClosed` on `ConversationDetail`.
 
 - The Generic Intake requests `startIntakeConversation`, `startIntakeTurn`, `getIntakeTurnEvents`
   and `getConversation` in `WebChatBridge`. A page that speaks them, such as the hosted `/v1/`

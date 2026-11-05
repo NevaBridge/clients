@@ -1,8 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Net.Http;
 using System.Runtime.CompilerServices;
-using System.Text.Json;
 
 namespace NevaBridge.Chat;
 
@@ -188,7 +186,7 @@ public sealed class ChatViewModel : INotifyPropertyChanged
             // Give the text back so the reporter can send it again.
             Messages.RemoveAt(Messages.Count - 1);
             Draft = text;
-            ErrorText = DescribeError(error);
+            ErrorText = ChatErrors.Describe(error);
         }
         finally
         {
@@ -215,7 +213,7 @@ public sealed class ChatViewModel : INotifyPropertyChanged
         }
         catch (Exception error)
         {
-            ErrorText = DescribeError(error);
+            ErrorText = ChatErrors.Describe(error);
         }
         finally
         {
@@ -285,22 +283,6 @@ public sealed class ChatViewModel : INotifyPropertyChanged
             : $"{c.Key}: not delivered ({c.Value.Error})");
         return "Delivered to " + string.Join("; ", parts) + ".";
     }
-
-    private static string DescribeError(Exception error) => error switch
-    {
-        NevaBridgeApiException { StatusCode: 402 } =>
-            "NevaBridge has no credits left for this organization. Please contact your administrator.",
-        NevaBridgeApiException { StatusCode: 401 or 403 } api =>
-            $"NevaBridge refused the request ({api.Message}). Check the stored API key and product.",
-        NevaBridgeApiException { IsRetryable: true } =>
-            "NevaBridge is busy or took too long to answer. Please try again in a moment.",
-        NevaBridgeApiException api => $"NevaBridge could not process the request: {api.Message}",
-        NevaBridgeUploadException => "The file could not be uploaded. Please try again.",
-        TaskCanceledException => "The request to NevaBridge timed out. Please try again.",
-        JsonException => "NevaBridge sent an answer this version of the chat cannot read.",
-        HttpRequestException => "NevaBridge could not be reached. Check the network connection and try again.",
-        _ => "The application could not complete the chat request.",
-    };
 
     private static string Humanize(string key)
     {

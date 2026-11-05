@@ -129,8 +129,54 @@ Leave `WebChatUrl` as `NULL` and complete the common setup above.
 3. Build and run your app. Start a conversation, send a follow-up, and submit a report to a safe
    sandbox test product. Verify the reporter and application context before using production.
 
-The native control provides report type selection, replies, a draft report and submission. The
-file attachment picker is provided by the WebView2 variant.
+The native control provides report type selection, replies, a draft report and submission. It
+offers no file attachments; the Generic Intake chat below and the web chat do.
+
+### Native Generic Intake chat
+
+With the tenant's `genericIntake` feature, the assistant works out what the reporter needs instead
+of asking for a report type, and one conversation can file several reports. Each message starts a
+turn that runs in the background; the chat shows what the assistant is doing and the reply as it
+is written, then the conversation as saved. Finish ends the conversation and files everything it
+noted; the chat then lists what was passed on to the team.
+
+1. Add the control to your window:
+
+   ```xml
+   <nevabridge:NevaBridgeIntakeChatControl x:Name="IntakeChat" />
+   ```
+
+2. Read the tenant's features, then create the view model. Pass the control's file picker only when
+   your application offers attachments and the tenant has `chatAttachments`; pass the reporter's
+   contact details when your application knows them, so the assistant does not ask:
+
+   ```csharp
+   IReadOnlyDictionary<string, bool> features = await nevaBridge.GetFeaturesAsync();
+   if (features.GetValueOrDefault("genericIntake"))
+   {
+       IntakeChatViewModel chat = new(nevaBridge, settings.ProductId, reporter, new IntakeChatOptions
+       {
+           ApplicationContext = applicationContext,
+           ReporterContact = new ReporterContact { Email = currentUser.Email },
+           PickFile = features.GetValueOrDefault("chatAttachments") ? IntakeChat.PickFileAsync : null,
+       });
+       IntakeChat.DataContext = chat;
+       Closed += (_, _) => chat.Dispose();
+   }
+   ```
+
+   `nevaBridge` implements `INevaBridgeIntakeConversations`; the sample's `NevaBridgeClient` does.
+   It is separate from `INevaBridgeConversations`, so an implementation of that interface keeps
+   compiling.
+
+3. Send a message, attach and remove a file, and press Finish in a sandbox test product. The chat
+   lists the filed reports.
+
+The chat recovers from a lost answer the way the web chat does: a turn already running is
+followed, a message the conversation already saved is not sent again, and a reply that could not
+be loaded offers Check again. One case cannot be recovered: when the answer to the very first
+message's start is lost, the chat cannot find that conversation, and sending again starts a new
+one. Its texts are English and live in `IntakeChatText`.
 
 ## 2. NevaBridge-hosted web chat
 
@@ -220,7 +266,8 @@ it does not isolate the app from API changes, service outages, or host and WebVi
 
 Web chat attachments require `chatAttachments`. The host reads the tenant's features, shows the
 Windows file picker, and uploads the file. Set `AllowAttachments = false` to disable the picker.
-The page receives neither the file bytes nor the API key.
+The page receives neither the file bytes nor the API key. The native Generic Intake chat offers
+attachments when it gets a file picker (see above).
 
 Conversation errors appear inside the chat. Missing settings raise `NevaBridgeSettingsException`;
 show its message when opening the chat fails. The sample's `ChatErrors.cs` demonstrates this.
@@ -228,8 +275,8 @@ show its message when opening the chat fails. The sample's `ChatErrors.cs` demon
 A direct API integration makes the tenant-wide key accessible to the desktop process, including
 when it is stored in SQL Server or Credential Manager. Anyone who obtains it can read the tenant's
 conversations and act as any reporter. If users must not have that authority, keep the key in a
-backend service and implement `INevaBridgeConversations` and `INevaBridgeWebChatApi` to call that
-service instead. `INevaBridgeWebChatApi` returns the API's JSON for each operation unchanged, because
+backend service and implement `INevaBridgeConversations`, `INevaBridgeIntakeConversations` and
+`INevaBridgeWebChatApi` to call that service instead. `INevaBridgeWebChatApi` returns the API's JSON for each operation unchanged, because
 the bridge passes it to the page as it is.
 
 See the [sample guide](../../samples/dotnet-wpf/README.md) for environment-variable and Credential
