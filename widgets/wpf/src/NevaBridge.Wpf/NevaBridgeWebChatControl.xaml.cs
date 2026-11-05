@@ -49,7 +49,7 @@ public partial class NevaBridgeWebChatControl : UserControl
     /// shown: WebView2 finishes initializing only inside a shown window.
     /// </summary>
     public async Task InitializeAsync(
-        INevaBridgeConversations conversations,
+        INevaBridgeWebChatApi api,
         NevaBridgeSettings settings,
         NevaBridgeReporter reporter,
         IReadOnlyDictionary<string, string>? applicationContext)
@@ -59,7 +59,7 @@ public partial class NevaBridgeWebChatControl : UserControl
             ? Path.Combine(AppContext.BaseDirectory, "webview-chat")
             : null;
         _bridge = new WebChatBridge(
-            conversations,
+            api,
             settings.ProductId,
             reporter,
             applicationContext,

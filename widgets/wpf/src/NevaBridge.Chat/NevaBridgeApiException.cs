@@ -19,6 +19,9 @@ public sealed class NevaBridgeApiException : Exception
     /// <summary>For ModelInvocationFailed: throttled, timed-out, transient-unavailable and so on.</summary>
     public string? Category { get; }
 
+    /// <summary>For a 409 IntakeTurnRunning: the Generic Intake turn that is still running.</summary>
+    public string? TurnId { get; init; }
+
     /// <summary>The gateway gave up before NevaBridge handled the request, typically after 29 seconds.</summary>
     public bool IsEdgeFailure => ErrorName is null;
 

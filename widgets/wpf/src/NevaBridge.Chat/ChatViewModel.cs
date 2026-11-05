@@ -295,6 +295,7 @@ public sealed class ChatViewModel : INotifyPropertyChanged
         NevaBridgeApiException { IsRetryable: true } =>
             "NevaBridge is busy or took too long to answer. Please try again in a moment.",
         NevaBridgeApiException api => $"NevaBridge could not process the request: {api.Message}",
+        NevaBridgeUploadException => "The file could not be uploaded. Please try again.",
         TaskCanceledException => "The request to NevaBridge timed out. Please try again.",
         JsonException => "NevaBridge sent an answer this version of the chat cannot read.",
         HttpRequestException => "NevaBridge could not be reached. Check the network connection and try again.",

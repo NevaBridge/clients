@@ -34,7 +34,8 @@ dotnet build YourApp.csproj -c Release
 ```
 
 The references bring in the controls and bundled page, the HTTP client implementing
-`INevaBridgeConversations`, and the SQL Server settings provider. Keep the direct `NevaBridge.Chat`
+`INevaBridgeConversations` (for the native chat) and `INevaBridgeWebChatApi` (for the web chat), and
+the SQL Server settings provider. Keep the direct `NevaBridge.Chat`
 reference if you replace the sample HTTP client or SQL provider with your own implementations.
 NuGet restores their public
 WebView2 and SQL client dependencies; no published NevaBridge package is needed.
@@ -76,7 +77,7 @@ and product ids belong to sandbox, so use a production key and product id for pr
 
    INevaBridgeSettingsProvider provider = new SqlServerSettingsProvider(connectionString);
    NevaBridgeSettings settings = await provider.GetSettingsAsync();
-   INevaBridgeConversations conversations = new NevaBridgeClient(httpClient, settings);
+   NevaBridgeClient nevaBridge = new NevaBridgeClient(httpClient, settings);
    ```
 
 Keep one `HttpClient` for the application's lifetime, with a timeout of at least 60 seconds for
@@ -122,7 +123,7 @@ Leave `WebChatUrl` as `NULL` and complete the common setup above.
 
    ```csharp
    Chat.DataContext = new ChatViewModel(
-       conversations, settings.ProductId, reporter, applicationContext);
+       nevaBridge, settings.ProductId, reporter, applicationContext);
    ```
 
 3. Build and run your app. Start a conversation, send a follow-up, and submit a report to a safe
@@ -158,7 +159,7 @@ app. The bridge supports the hosted page's string request ids and the bundled pr
 
    ```csharp
    window.Show();
-   await WebChat.InitializeAsync(conversations, settings, reporter, applicationContext);
+   await WebChat.InitializeAsync(nevaBridge, settings, reporter, applicationContext);
    ```
 
 4. Test with `https://chat.app.sandbox.nevabridge.com/v1/` and sandbox API settings first. Verify
@@ -168,6 +169,12 @@ app. The bridge supports the hosted page's string request ids and the bundled pr
 test updates. `/latest/` follows the newest protocol major and can require a new host bridge; use it
 only if you also coordinate those host updates. Reopen the chat to load new page files or reread a
 changed database URL.
+
+The bridge speaks version 1 of the webview chat bridge protocol, pinned in this repository under
+`contracts/webview-chat-protocol/`, and passes every conformance case there. That includes the Generic
+Intake requests: when your tenant has Generic Intake, the hosted page runs a Generic Intake
+conversation through the bridge, polling each turn. The bundled copy and the native chat still run
+the classic chat.
 
 ## 3. Bundle or host your own copy
 
@@ -221,7 +228,9 @@ show its message when opening the chat fails. The sample's `ChatErrors.cs` demon
 A direct API integration makes the tenant-wide key accessible to the desktop process, including
 when it is stored in SQL Server or Credential Manager. Anyone who obtains it can read the tenant's
 conversations and act as any reporter. If users must not have that authority, keep the key in a
-backend service and implement `INevaBridgeConversations` to call that service instead.
+backend service and implement `INevaBridgeConversations` and `INevaBridgeWebChatApi` to call that
+service instead. `INevaBridgeWebChatApi` returns the API's JSON for each operation unchanged, because
+the bridge passes it to the page as it is.
 
 See the [sample guide](../../samples/dotnet-wpf/README.md) for environment-variable and Credential
 Manager demo setup and the reference files that connect the controls to an application.

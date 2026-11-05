@@ -8,13 +8,15 @@ namespace NevaBridge.Chat.Tests;
 public sealed class WebChatBridgeTests
 {
     private const string ProductId = "product-00000000-0000-4000-8000-000000000001";
-    private const string ConversationId = FakeConversations.ConversationId;
-    private const string ReportId = FakeConversations.ReportId;
+    private const string ConversationId = FakeWebChatApi.ConversationId;
+    private const string ReportId = FakeWebChatApi.ReportId;
+    private const string TurnId = FakeWebChatApi.TurnId;
+    private const string NextTurnId = FakeWebChatApi.NextTurnId;
 
     private static readonly Uri PageOrigin = new("https://webchat.nevabridge.example/");
     private static readonly Uri PageUrl = new("https://webchat.nevabridge.example/index.html");
 
-    private readonly FakeConversations _nevaBridge = new();
+    private readonly FakeWebChatApi _nevaBridge = new();
     private PickedFile? _nextPickedFile;
     private Exception? _pickerFailure;
 
@@ -93,6 +95,10 @@ public sealed class WebChatBridgeTests
         Assert.Equal(
             "When does it crash?",
             reply.RootElement.GetProperty("result").GetProperty("assistantMessage").GetProperty("content").GetString());
+        Assert.Equal(
+            "2026-09-30T10:00:02.000Z",
+            reply.RootElement.GetProperty("result").GetProperty("assistantMessage").GetProperty("createdAt").GetString());
+        Assert.True(reply.RootElement.GetProperty("result").GetProperty("fieldFromALaterRevision").GetBoolean());
     }
 
     [Theory]
@@ -121,7 +127,7 @@ public sealed class WebChatBridgeTests
 
         // Then
         Assert.Empty(_nevaBridge.Calls);
-        Assert.Equal("InvalidRequest", ErrorName(response));
+        Assert.Equal("UnsupportedRequest", ErrorName(response));
     }
 
     [Fact]
@@ -210,7 +216,7 @@ public sealed class WebChatBridgeTests
     public async Task The_page_learns_the_tenant_features_from_the_host()
     {
         // Given
-        _nevaBridge.Features = new Dictionary<string, bool> { ["chatAttachments"] = true, ["knowledgebase"] = false };
+        _nevaBridge.FeaturesJson = """{"chatAttachments": true, "knowledgebase": false}""";
 
         // When
         string? response = await CreateBridge().HandleAsync(PageUrl, """{"id":3,"type":"getFeatures"}""");
@@ -246,7 +252,7 @@ public sealed class WebChatBridgeTests
     }
 
     [Fact]
-    public async Task Closing_the_file_picker_attaches_nothing()
+    public async Task Closing_the_file_picker_answers_Cancelled_and_attaches_nothing()
     {
         // Given
         WebChatBridge bridge = CreateBridge();
@@ -260,9 +266,8 @@ public sealed class WebChatBridgeTests
 
         // Then
         Assert.Single(_nevaBridge.Calls);
-        using JsonDocument reply = JsonDocument.Parse(response!);
-        Assert.True(reply.RootElement.GetProperty("ok").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, reply.RootElement.GetProperty("result").ValueKind);
+        Assert.False(Ok(response));
+        Assert.Equal("Cancelled", ErrorName(response));
     }
 
     [Fact]
@@ -278,14 +283,14 @@ public sealed class WebChatBridgeTests
             $$"""{"id":4,"type":"attachFile","conversationId":"{{ConversationId}}"}""");
 
         // Then
-        Assert.Equal("UnsupportedOperation", ErrorName(response));
+        Assert.Equal("UnsupportedRequest", ErrorName(response));
     }
 
     [Fact]
     public async Task A_host_without_a_file_picker_reports_attachments_as_off()
     {
         // Given
-        _nevaBridge.Features = new Dictionary<string, bool> { ["chatAttachments"] = true, ["knowledgebase"] = true };
+        _nevaBridge.FeaturesJson = """{"chatAttachments": true, "knowledgebase": true}""";
 
         // When
         string? response = await CreateBridge(canPickFiles: false).HandleAsync(PageUrl, """{"id":3,"type":"getFeatures"}""");
@@ -347,10 +352,9 @@ public sealed class WebChatBridgeTests
     }
 
     [Theory]
-    [InlineData("""{"id":4,"type":"listConversations"}""", 4, "UnsupportedOperation")]
-    [InlineData("""{"id":5,"type":"startConversation","text":"   "}""", 5, "InvalidRequest")]
-    [InlineData("""not json""", 0, "InvalidRequest")]
-    public async Task Requests_outside_the_protocol_are_refused(string message, int expectedId, string expectedError)
+    [InlineData("""{"id":4,"type":"listConversations"}""", 4)]
+    [InlineData("""{"id":5,"type":"startConversation","text":"   "}""", 5)]
+    public async Task Requests_outside_the_protocol_are_refused(string message, int expectedId)
     {
         // When
         string? response = await CreateBridge().HandleAsync(PageUrl, message);
@@ -359,8 +363,150 @@ public sealed class WebChatBridgeTests
         Assert.Empty(_nevaBridge.Calls);
         using JsonDocument reply = JsonDocument.Parse(response!);
         Assert.Equal(expectedId, reply.RootElement.GetProperty("id").GetInt32());
-        Assert.Equal(expectedError, reply.RootElement.GetProperty("error").GetProperty("name").GetString());
+        Assert.Equal("UnsupportedRequest", reply.RootElement.GetProperty("error").GetProperty("name").GetString());
     }
+
+    [Theory]
+    [InlineData("""not json""")]
+    [InlineData("""["an", "array"]""")]
+    [InlineData("""{"type":"getFeatures"}""")]
+    [InlineData("""{"id":"","type":"getFeatures"}""")]
+    public async Task A_message_without_a_request_id_is_ignored(string message)
+    {
+        // When
+        string? response = await CreateBridge().HandleAsync(PageUrl, message);
+
+        // Then
+        Assert.Null(response);
+        Assert.Empty(_nevaBridge.Calls);
+    }
+
+    [Fact]
+    public async Task A_Generic_Intake_conversation_starts_with_the_host_product_reporter_and_context()
+    {
+        // When
+        string? response = await CreateBridge().HandleAsync(
+            PageUrl,
+            """{"id":1,"type":"startIntakeConversation","text":"It crashes."}""");
+
+        // Then
+        RecordedCall call = Assert.Single(_nevaBridge.Calls);
+        Assert.Equal("startIntake", call.Operation);
+        Assert.Equal(ProductId, call.Arguments["productId"]);
+        Assert.Equal("CORP\\jdoe", ((NevaBridgeReporter)call.Arguments["reporter"]!).Id);
+        StartIntakeConversationRequest request = (StartIntakeConversationRequest)call.Arguments["request"]!;
+        Assert.Equal("It crashes.", request.UserMessage.Content);
+        Assert.Equal("Invoices", request.ApplicationContext!["screen"]);
+        using JsonDocument reply = JsonDocument.Parse(response!);
+        Assert.Equal(TurnId, reply.RootElement.GetProperty("result").GetProperty("turnId").GetString());
+    }
+
+    [Fact]
+    public async Task The_turn_a_start_returned_can_be_read()
+    {
+        // Given
+        WebChatBridge bridge = CreateBridge();
+        await StartIntakeAsync(bridge);
+
+        // When
+        string? response = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":2,"type":"getIntakeTurnEvents","turnId":"{{TurnId}}","after":"3"}""");
+
+        // Then
+        Assert.True(Ok(response));
+        Assert.Equal("events", _nevaBridge.Calls[1].Operation);
+        Assert.Equal("3", _nevaBridge.Calls[1].Arguments["after"]);
+    }
+
+    [Fact]
+    public async Task The_turn_a_later_turn_start_returned_can_be_read()
+    {
+        // Given
+        WebChatBridge bridge = CreateBridge();
+        await StartIntakeAsync(bridge);
+        await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":2,"type":"startIntakeTurn","conversationId":"{{ConversationId}}","text":"On save.","expectedRevision":1,"finish":true}""");
+
+        // When
+        string? response = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":3,"type":"getIntakeTurnEvents","turnId":"{{NextTurnId}}"}""");
+
+        // Then
+        StartIntakeTurnRequest request = (StartIntakeTurnRequest)_nevaBridge.Calls[1].Arguments["request"]!;
+        Assert.Equal(new StartIntakeTurnRequest("On save.", 1) { Finish = true }, request);
+        Assert.True(Ok(response));
+    }
+
+    [Fact]
+    public async Task The_running_turn_a_refused_turn_start_named_can_be_read()
+    {
+        // Given
+        WebChatBridge bridge = CreateBridge();
+        await StartIntakeAsync(bridge);
+        _nevaBridge.FailWith = new NevaBridgeApiException(409, "IntakeTurnRunning", null, "Another turn is running.")
+        {
+            TurnId = NextTurnId,
+        };
+        string? refused = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":2,"type":"startIntakeTurn","conversationId":"{{ConversationId}}","text":"On save.","expectedRevision":1}""");
+        _nevaBridge.FailWith = null;
+
+        // When
+        string? response = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":3,"type":"getIntakeTurnEvents","turnId":"{{NextTurnId}}"}""");
+
+        // Then
+        using JsonDocument reply = JsonDocument.Parse(refused!);
+        Assert.Equal(NextTurnId, reply.RootElement.GetProperty("error").GetProperty("turnId").GetString());
+        Assert.True(Ok(response));
+    }
+
+    [Fact]
+    public async Task The_running_turn_a_conversation_read_named_can_be_read()
+    {
+        // Given
+        WebChatBridge bridge = CreateBridge();
+        await StartIntakeAsync(bridge);
+        _nevaBridge.ActiveTurnId = NextTurnId;
+        await bridge.HandleAsync(PageUrl, $$"""{"id":2,"type":"getConversation","conversationId":"{{ConversationId}}"}""");
+
+        // When
+        string? response = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":3,"type":"getIntakeTurnEvents","turnId":"{{NextTurnId}}"}""");
+
+        // Then
+        Assert.True(Ok(response));
+    }
+
+    [Theory]
+    [InlineData(""" "expectedRevision":-1 """)]
+    [InlineData(""" "expectedRevision":1.5 """)]
+    [InlineData(""" "expectedRevision":"1" """)]
+    [InlineData(""" "expectedRevision":1,"finish":"yes" """)]
+    public async Task A_turn_start_outside_the_protocol_is_refused(string fields)
+    {
+        // Given
+        WebChatBridge bridge = CreateBridge();
+        await StartIntakeAsync(bridge);
+
+        // When
+        string? response = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":2,"type":"startIntakeTurn","conversationId":"{{ConversationId}}","text":"On save.",{{fields}}}""");
+
+        // Then
+        Assert.Single(_nevaBridge.Calls);
+        Assert.Equal("UnsupportedRequest", ErrorName(response));
+    }
+
+    private static async Task StartIntakeAsync(WebChatBridge bridge) =>
+        await bridge.HandleAsync(PageUrl, """{"id":1,"type":"startIntakeConversation","text":"It crashes."}""");
 
     private static bool Ok(string? response)
     {

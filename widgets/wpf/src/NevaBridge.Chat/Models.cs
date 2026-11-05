@@ -27,6 +27,22 @@ public sealed record StartConversationRequest(UserMessage UserMessage)
     public ReporterRole? ReporterRole { get; init; }
 }
 
+/// <summary>The first message of a Generic Intake conversation.</summary>
+public sealed record StartIntakeConversationRequest(UserMessage UserMessage)
+{
+    /// <summary>The application's own context, stored with the conversation and shown in triage.</summary>
+    public IReadOnlyDictionary<string, string>? ApplicationContext { get; init; }
+}
+
+/// <summary>The next message of a Generic Intake conversation.</summary>
+/// <param name="Content">The reporter's message.</param>
+/// <param name="ExpectedRevision">The conversation's revision last read; a stale one is refused.</param>
+public sealed record StartIntakeTurnRequest(string Content, int ExpectedRevision)
+{
+    /// <summary>Ends the conversation with this message.</summary>
+    public bool? Finish { get; init; }
+}
+
 public sealed record AppendMessageRequest(string Content)
 {
     public string? WriterModelKey { get; init; }

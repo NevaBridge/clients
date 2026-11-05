@@ -1,12 +1,13 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
 
 namespace NevaBridge.Chat.WebChat;
 
 /// <summary>
-/// Answers requests from the NevaBridge web chat page hosted in a WebView. The page only
-/// renders; every API call runs here, so the API key never reaches the page.
+/// Answers requests from the NevaBridge web chat page hosted in a WebView, following version 1 of
+/// the webview chat bridge protocol (pinned in the clients repository under
+/// <c>contracts/webview-chat-protocol/</c>). The page only renders; every API call runs here, so
+/// the API key never reaches the page.
 /// </summary>
 /// <remarks>
 /// The page may be loaded from a server outside the host application's control, so it is
@@ -16,49 +17,45 @@ namespace NevaBridge.Chat.WebChat;
 /// <item>Messages from any origin other than the page's are ignored.</item>
 /// <item>Only the chat operations are available, never arbitrary requests.</item>
 /// <item>The product, reporter and application context come from the host, never the page.</item>
-/// <item>Follow-ups and submissions are accepted only for conversations the page started through
-/// this bridge, so the page cannot reach other reporters' conversations.</item>
+/// <item>Conversations and Generic Intake turns are reachable only when this bridge returned them
+/// to the page, so the page cannot reach other reporters' conversations.</item>
 /// </list>
-/// String request IDs from hosted pages and numeric IDs from the bundled prototype are echoed unchanged.
-/// Protocol version 1 requests:
-/// <c>{"id":1,"type":"startConversation","text":"...","category":"bug_report"}</c>
-/// (category optional; see <see cref="ReportCategories"/>),
-/// <c>{"id":2,"type":"appendMessage","conversationId":"...","text":"..."}</c>,
-/// <c>{"id":3,"type":"submitReport","conversationId":"...","reportId":"..."}</c>,
-/// <c>{"id":4,"type":"getFeatures"}</c> (result: feature name to on/off), and
-/// <c>{"id":5,"type":"attachFile","conversationId":"..."}</c> (the host shows its file picker and
-/// uploads the file itself; result: the attachment, or null when the user picked nothing).
-/// Response: <c>{"id":1,"ok":true,"result":{...}}</c> with the API's own JSON shape, or
-/// <c>{"id":1,"ok":false,"error":{"name":"...","message":"...","status":429,"retryable":true}}</c>.
+/// Results are the API's JSON for each operation, unchanged. String request IDs from hosted pages
+/// and numeric IDs from the bundled prototype are echoed unchanged; a message without an ID is
+/// ignored.
 /// </remarks>
 public sealed class WebChatBridge
 {
     private const int MaxMessageLength = 32768;
+    private const int MaxRequestIdLength = 64;
+    private const int MaxCursorLength = 1024;
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
+    private static readonly HashSet<string> RetryableModelFailures = new(StringComparer.Ordinal)
     {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        "throttled", "transient-unavailable", "timed-out", "output-unparseable", "unknown",
     };
 
-    private readonly INevaBridgeConversations _conversations;
+    private readonly INevaBridgeWebChatApi _api;
     private readonly string _productId;
     private readonly NevaBridgeReporter _reporter;
     private readonly IReadOnlyDictionary<string, string>? _applicationContext;
     private readonly string _allowedOrigin;
     private readonly Func<CancellationToken, Task<PickedFile?>>? _pickFile;
-    // Messages can be handled concurrently, so the set is guarded.
+
+    // Messages can be handled concurrently, so both sets are guarded by one lock.
     private readonly HashSet<string> _startedConversations = new(StringComparer.Ordinal);
-    private readonly object _startedConversationsLock = new();
+    private readonly HashSet<string> _startedTurns = new(StringComparer.Ordinal);
+    private readonly object _sessionLock = new();
 
     public WebChatBridge(
-        INevaBridgeConversations conversations,
+        INevaBridgeWebChatApi api,
         string productId,
         NevaBridgeReporter reporter,
         IReadOnlyDictionary<string, string>? applicationContext,
         Uri pageOrigin,
         Func<CancellationToken, Task<PickedFile?>>? pickFile = null)
     {
-        _conversations = conversations;
+        _api = api;
         _productId = productId;
         _reporter = reporter;
         _applicationContext = applicationContext;
@@ -77,7 +74,7 @@ public sealed class WebChatBridge
 
     /// <summary>
     /// Handles one message from the page. Returns the response to post back, or null when the
-    /// message did not come from the page's origin and must be dropped.
+    /// message must be dropped: it did not come from the page's origin, or it carries no request ID.
     /// </summary>
     public async Task<string?> HandleAsync(Uri source, string message, CancellationToken cancellationToken = default)
     {
@@ -96,35 +93,32 @@ public sealed class WebChatBridge
             request = null;
         }
 
-        JsonValue? id = ReadRequestId(request);
-        if (request is null)
+        if (request is null || ReadRequestId(request) is not { } id)
         {
-            return Failure(id, "InvalidRequest", "The message is not a JSON object.");
+            return null;
         }
 
         try
         {
-            return ReadString(request, "type") switch
-            {
-                "startConversation" => await StartAsync(id, request, cancellationToken).ConfigureAwait(false),
-                "appendMessage" => await AppendAsync(id, request, cancellationToken).ConfigureAwait(false),
-                "submitReport" => await SubmitAsync(id, request, cancellationToken).ConfigureAwait(false),
-                "getFeatures" => Success(id, await GetFeaturesAsync(cancellationToken).ConfigureAwait(false)),
-                "attachFile" => await AttachFileAsync(id, request, cancellationToken).ConfigureAwait(false),
-                _ => Failure(id, "UnsupportedOperation", "The chat page asked for an operation the host does not offer."),
-            };
+            return await AnswerAsync(id, request, cancellationToken).ConfigureAwait(false);
+        }
+        catch (UnsupportedRequestException error)
+        {
+            return Failure(id, "UnsupportedRequest", error.Message);
         }
         catch (NevaBridgeApiException error)
         {
-            return Failure(id, error.ErrorName ?? "GatewayError", error.Message, error.StatusCode, error.IsRetryable);
+            return ApiFailure(id, error);
         }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (NevaBridgeUploadException error)
         {
-            return Failure(id, "Timeout", "NevaBridge did not answer in time.", retryable: true);
+            return Failure(id, "UploadFailed", error.Message, error.StatusCode, retryable: true);
         }
-        catch (HttpRequestException)
+        catch (Exception error) when (
+            error is HttpRequestException
+            || (error is TaskCanceledException && !cancellationToken.IsCancellationRequested))
         {
-            return Failure(id, "NetworkError", "NevaBridge could not be reached.", retryable: true);
+            return Failure(id, "NetworkFailure", "NevaBridge could not be reached.", retryable: true);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -141,20 +135,31 @@ public sealed class WebChatBridge
         }
     }
 
-    private async Task<string> StartAsync(JsonValue? id, JsonObject request, CancellationToken cancellationToken)
+    private Task<string> AnswerAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken) =>
+        ReadString(request, "type") switch
+        {
+            "startConversation" => StartAsync(id, request, cancellationToken),
+            "appendMessage" => AppendAsync(id, request, cancellationToken),
+            "submitReport" => SubmitAsync(id, request, cancellationToken),
+            "getFeatures" => GetFeaturesAsync(id, cancellationToken),
+            "attachFile" => AttachFileAsync(id, request, cancellationToken),
+            "startIntakeConversation" => StartIntakeAsync(id, request, cancellationToken),
+            "startIntakeTurn" => StartTurnAsync(id, request, cancellationToken),
+            "getIntakeTurnEvents" => GetTurnEventsAsync(id, request, cancellationToken),
+            "getConversation" => GetConversationAsync(id, request, cancellationToken),
+            _ => throw new UnsupportedRequestException("This request type is not supported."),
+        };
+
+    private async Task<string> StartAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
     {
-        if (ReadText(request) is not { } text)
-        {
-            return InvalidText(id);
-        }
-
+        string text = ReadText(request);
         string? category = ReadString(request, "category");
-        if (category is not null && !ReportCategories.All.Contains(category))
+        if (request["category"] is not null && (category is null || !ReportCategories.All.Contains(category)))
         {
-            return Failure(id, "InvalidRequest", "category must be one of: " + string.Join(", ", ReportCategories.All) + ".");
+            throw new UnsupportedRequestException("category must be one of: " + string.Join(", ", ReportCategories.All) + ".");
         }
 
-        ConversationTurn turn = await _conversations.StartConversationAsync(
+        JsonElement turn = await _api.StartConversationAsync(
             _productId,
             _reporter,
             new StartConversationRequest(new UserMessage(text))
@@ -163,66 +168,55 @@ public sealed class WebChatBridge
                 ApplicationContext = _applicationContext,
             },
             cancellationToken).ConfigureAwait(false);
-        lock (_startedConversationsLock)
-        {
-            _startedConversations.Add(turn.AssistantMessage.ConversationId);
-        }
-
+        Remember(
+            _startedConversations,
+            ReadString(turn, "assistantMessage", "conversationId") ?? ReadString(turn, "userMessage", "conversationId"));
         return Success(id, turn);
     }
 
-    private async Task<string> AppendAsync(JsonValue? id, JsonObject request, CancellationToken cancellationToken)
+    private async Task<string> AppendAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
     {
-        if (ReadStartedConversation(request) is not { } conversationId)
+        string? conversationId = ReadStartedConversation(request);
+        string text = ReadText(request);
+        if (conversationId is null)
         {
             return UnknownConversation(id);
         }
 
-        if (ReadText(request) is not { } text)
-        {
-            return InvalidText(id);
-        }
-
-        ConversationTurn turn = await _conversations.AppendMessageAsync(
-            conversationId,
-            new AppendMessageRequest(text),
-            cancellationToken).ConfigureAwait(false);
-        return Success(id, turn);
+        return Success(
+            id,
+            await _api.AppendMessageAsync(conversationId, new AppendMessageRequest(text), cancellationToken).ConfigureAwait(false));
     }
 
-    private async Task<string> SubmitAsync(JsonValue? id, JsonObject request, CancellationToken cancellationToken)
+    private async Task<string> SubmitAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
     {
-        if (ReadStartedConversation(request) is not { } conversationId)
+        string? conversationId = ReadStartedConversation(request);
+        string reportId = ReadRequiredString(request, "reportId");
+        if (conversationId is null)
         {
             return UnknownConversation(id);
         }
 
-        if (ReadString(request, "reportId") is not { Length: > 0 } reportId)
-        {
-            return Failure(id, "InvalidRequest", "reportId is required.");
-        }
-
-        SubmitReportResult result = await _conversations.SubmitReportAsync(
-            conversationId,
-            reportId,
-            cancellationToken).ConfigureAwait(false);
-        return Success(id, result);
+        return Success(
+            id,
+            await _api.SubmitReportAsync(conversationId, reportId, cancellationToken).ConfigureAwait(false));
     }
 
-    private async Task<IReadOnlyDictionary<string, bool>> GetFeaturesAsync(CancellationToken cancellationToken)
+    private async Task<string> GetFeaturesAsync(JsonValue id, CancellationToken cancellationToken)
     {
-        IReadOnlyDictionary<string, bool> features = await _conversations.GetFeaturesAsync(cancellationToken).ConfigureAwait(false);
-        if (_pickFile is not null)
+        JsonElement features = await _api.GetFeaturesAsync(cancellationToken).ConfigureAwait(false);
+        if (_pickFile is not null || features.ValueKind != JsonValueKind.Object)
         {
-            return features;
+            return Success(id, features);
         }
 
         // Without a file picker this host cannot attach files, whatever the tenant may do.
-        Dictionary<string, bool> effective = new(features) { ["chatAttachments"] = false };
-        return effective;
+        JsonObject effective = JsonNode.Parse(features.GetRawText())!.AsObject();
+        effective["chatAttachments"] = false;
+        return Success(id, effective);
     }
 
-    private async Task<string> AttachFileAsync(JsonValue? id, JsonObject request, CancellationToken cancellationToken)
+    private async Task<string> AttachFileAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
     {
         if (ReadStartedConversation(request) is not { } conversationId)
         {
@@ -231,75 +225,222 @@ public sealed class WebChatBridge
 
         if (_pickFile is null)
         {
-            return Failure(id, "UnsupportedOperation", "This application does not offer file attachments.");
+            throw new UnsupportedRequestException("This application does not offer file attachments.");
         }
 
         PickedFile? file = await _pickFile(cancellationToken).ConfigureAwait(false);
         if (file is null)
         {
-            return Success<Attachment?>(id, null);
+            return Failure(id, "Cancelled", "No file was chosen.");
         }
 
-        Attachment attachment = await _conversations.AttachFileAsync(
-            conversationId,
-            _reporter.Id,
-            file,
+        return Success(
+            id,
+            await _api.AttachFileAsync(conversationId, _reporter.Id, file, cancellationToken).ConfigureAwait(false));
+    }
+
+    private async Task<string> StartIntakeAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
+    {
+        string text = ReadText(request);
+        JsonElement started = await _api.StartIntakeConversationAsync(
+            _productId,
+            _reporter,
+            new StartIntakeConversationRequest(new UserMessage(text)) { ApplicationContext = _applicationContext },
             cancellationToken).ConfigureAwait(false);
-        return Success(id, attachment);
+        Remember(_startedConversations, ReadString(started, "conversationId"));
+        Remember(_startedTurns, ReadString(started, "turnId"));
+        return Success(id, started);
+    }
+
+    private async Task<string> StartTurnAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
+    {
+        string? conversationId = ReadStartedConversation(request);
+        string text = ReadText(request);
+        if (request["expectedRevision"] is not JsonValue revisionValue
+            || revisionValue.GetValueKind() != JsonValueKind.Number
+            || !revisionValue.TryGetValue(out int expectedRevision)
+            || expectedRevision < 0)
+        {
+            throw new UnsupportedRequestException("expectedRevision must be a whole number from 0.");
+        }
+
+        bool? finish = null;
+        if (request["finish"] is { } finishNode)
+        {
+            if (finishNode is not JsonValue finishValue || !finishValue.TryGetValue(out bool finishFlag))
+            {
+                throw new UnsupportedRequestException("finish must be true or false.");
+            }
+
+            finish = finishFlag;
+        }
+
+        if (conversationId is null)
+        {
+            return UnknownConversation(id);
+        }
+
+        JsonElement started = await _api.StartIntakeTurnAsync(
+            conversationId,
+            new StartIntakeTurnRequest(text, expectedRevision) { Finish = finish },
+            cancellationToken).ConfigureAwait(false);
+        Remember(_startedTurns, ReadString(started, "turnId"));
+        return Success(id, started);
+    }
+
+    private async Task<string> GetTurnEventsAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
+    {
+        string turnId = ReadRequiredString(request, "turnId");
+        string? after = ReadString(request, "after");
+        if (request["after"] is not null && after is not { Length: > 0 and <= MaxCursorLength })
+        {
+            throw new UnsupportedRequestException($"after must contain 1 to {MaxCursorLength} characters.");
+        }
+
+        bool known;
+        lock (_sessionLock)
+        {
+            known = _startedTurns.Contains(turnId);
+        }
+
+        if (!known)
+        {
+            return Failure(id, "UnknownTurn", "This turn was not started in this chat.");
+        }
+
+        return Success(
+            id,
+            await _api.GetIntakeTurnEventsAsync(turnId, after, cancellationToken).ConfigureAwait(false));
+    }
+
+    private async Task<string> GetConversationAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
+    {
+        if (ReadStartedConversation(request) is not { } conversationId)
+        {
+            return UnknownConversation(id);
+        }
+
+        JsonElement detail = await _api.GetConversationAsync(conversationId, cancellationToken).ConfigureAwait(false);
+        Remember(_startedTurns, ReadString(detail, "activeTurnId"));
+        return Success(id, detail);
+    }
+
+    private string ApiFailure(JsonValue id, NevaBridgeApiException error)
+    {
+        if (error.ErrorName is null)
+        {
+            // The gateway in front of NevaBridge answered, typically after its time limit.
+            return Failure(id, "EdgeFailure", error.Message, error.StatusCode, retryable: true);
+        }
+
+        bool retryable = error.StatusCode is 408 or 429
+            || (error.ErrorName == "ModelInvocationFailed"
+                && error.Category is not null
+                && RetryableModelFailures.Contains(error.Category));
+        string? turnId = error is { StatusCode: 409, ErrorName: "IntakeTurnRunning" } ? error.TurnId : null;
+        Remember(_startedTurns, turnId);
+        return Failure(id, error.ErrorName, error.Message, error.StatusCode, retryable, turnId);
+    }
+
+    private void Remember(HashSet<string> started, string? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        lock (_sessionLock)
+        {
+            started.Add(value);
+        }
     }
 
     private string? ReadStartedConversation(JsonObject request)
     {
-        if (ReadString(request, "conversationId") is not { } conversationId)
-        {
-            return null;
-        }
-
-        lock (_startedConversationsLock)
+        string conversationId = ReadRequiredString(request, "conversationId");
+        lock (_sessionLock)
         {
             return _startedConversations.Contains(conversationId) ? conversationId : null;
         }
     }
 
-    private static string? ReadText(JsonObject request) =>
-        ReadString(request, "text")?.Trim() is { Length: > 0 and <= MaxMessageLength } text ? text : null;
+    private static string ReadText(JsonObject request) =>
+        ReadString(request, "text")?.Trim() is { Length: > 0 and <= MaxMessageLength } text
+            ? text
+            : throw new UnsupportedRequestException($"text must contain 1 to {MaxMessageLength} characters.");
 
-    private static string InvalidText(JsonValue? id) =>
-        Failure(id, "InvalidRequest", $"text must contain 1 to {MaxMessageLength} characters.");
+    private static string ReadRequiredString(JsonObject request, string name) =>
+        ReadString(request, name) is { Length: > 0 } value
+            ? value
+            : throw new UnsupportedRequestException($"{name} is required.");
 
-    private static string UnknownConversation(JsonValue? id) =>
-        Failure(id, "UnknownConversation", "This chat did not start that conversation.");
+    private static string UnknownConversation(JsonValue id) =>
+        Failure(id, "UnknownConversation", "This conversation was not started in this chat.");
 
-    private static string Success<T>(JsonValue? id, T result) =>
+    private static string Success(JsonValue id, JsonElement result) =>
+        Success(id, JsonNode.Parse(result.GetRawText()));
+
+    private static string Success(JsonValue id, JsonNode? result) =>
         new JsonObject
         {
-            ["id"] = id?.DeepClone(),
+            ["id"] = id.DeepClone(),
             ["ok"] = true,
-            ["result"] = JsonSerializer.SerializeToNode(result, JsonOptions),
+            ["result"] = result,
         }.ToJsonString();
 
-    private static string Failure(JsonValue? id, string name, string message, int? status = null, bool retryable = false) =>
-        new JsonObject
+    private static string Failure(
+        JsonValue id,
+        string name,
+        string message,
+        int? status = null,
+        bool retryable = false,
+        string? turnId = null)
+    {
+        JsonObject error = new()
         {
-            ["id"] = id?.DeepClone(),
+            ["name"] = name,
+            ["message"] = message,
+            ["status"] = status,
+            ["retryable"] = retryable,
+        };
+        if (turnId is not null)
+        {
+            error["turnId"] = turnId;
+        }
+
+        return new JsonObject
+        {
+            ["id"] = id.DeepClone(),
             ["ok"] = false,
-            ["error"] = new JsonObject
-            {
-                ["name"] = name,
-                ["message"] = message,
-                ["status"] = status,
-                ["retryable"] = retryable,
-            },
+            ["error"] = error,
         }.ToJsonString();
+    }
 
     private static string? ReadString(JsonObject request, string name) =>
         request[name] is JsonValue value && value.TryGetValue(out string? text) ? text : null;
 
-    private static JsonValue? ReadRequestId(JsonObject? request) =>
-        request?["id"] is JsonValue value &&
-        (value.TryGetValue(out string? _) || value.TryGetValue(out int _))
+    private static string? ReadString(JsonElement element, params string[] path)
+    {
+        foreach (string name in path)
+        {
+            if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(name, out element))
+            {
+                return null;
+            }
+        }
+
+        return element.ValueKind == JsonValueKind.String ? element.GetString() : null;
+    }
+
+    private static JsonValue? ReadRequestId(JsonObject request) =>
+        request["id"] is JsonValue value
+        && ((value.TryGetValue(out string? text) && text is { Length: > 0 and <= MaxRequestIdLength })
+            || (value.GetValueKind() == JsonValueKind.Number && value.TryGetValue(out long _)))
             ? value
-            : JsonValue.Create(0);
+            : null;
 
     private static string OriginOf(Uri uri) => uri.GetLeftPart(UriPartial.Authority);
+
+    /// <summary>The message is not a valid request of protocol major 1.</summary>
+    private sealed class UnsupportedRequestException(string message) : Exception(message);
 }

@@ -18,7 +18,10 @@ internal static class ApiErrors
                 string? errorName = ReadString(root, "error");
                 if (errorName is not null)
                 {
-                    return new NevaBridgeApiException(statusCode, errorName, ReadString(root, "category"), message ?? errorName);
+                    return new NevaBridgeApiException(statusCode, errorName, ReadString(root, "category"), message ?? errorName)
+                    {
+                        TurnId = ReadString(root, "turnId"),
+                    };
                 }
 
                 if (message is not null)
