@@ -12,7 +12,10 @@ import type {ConversationSummary} from "./generated/models/ConversationSummary.j
 import type {ConversationTurn} from "./generated/models/ConversationTurn.js";
 import type {Features} from "./generated/models/Features.js";
 import type {IntakeConversationList} from "./generated/models/IntakeConversationList.js";
-import type {IntakeConversationStarted} from "./generated/models/IntakeConversationStarted.js";
+import {
+  IntakeConversationStartedFromJSON,
+  type IntakeConversationStarted,
+} from "./generated/models/IntakeConversationStarted.js";
 import type {IntakeTurnStarted} from "./generated/models/IntakeTurnStarted.js";
 import type {RequestAttachmentUploadRequest} from "./generated/models/RequestAttachmentUploadRequest.js";
 import type {RequestAttachmentUploadResponse} from "./generated/models/RequestAttachmentUploadResponse.js";
@@ -23,6 +26,7 @@ import type {SubmitReportResult} from "./generated/models/SubmitReportResult.js"
 import {
   Configuration,
   FetchError,
+  JSONApiResponse,
   ResponseError,
   type ApiResponse,
 } from "./generated/runtime.js";
@@ -380,8 +384,11 @@ export class NevaBridgeClient {
   }
 
   /**
-   * Starts a Generic Intake conversation and its first turn, which runs in the
-   * background. Follow the turn with waitForIntakeTurn or getIntakeTurnEvents.
+   * Starts a Generic Intake conversation with `userMessage` and its first
+   * turn, which runs in the background. Follow the turn with
+   * waitForIntakeTurn or getIntakeTurnEvents. A start with `attachments`
+   * answers with the held conversation instead; read that answer with
+   * `json.startIntakeConversation`.
    */
   public async startIntakeConversation(
     options: StartIntakeConversationOptions,
@@ -573,10 +580,10 @@ export class NevaBridgeClient {
     );
   }
 
-  private sendStartIntakeConversation(
+  private async sendStartIntakeConversation(
     options: StartIntakeConversationOptions,
   ): Promise<ApiResponse<IntakeConversationStarted>> {
-    return this.conversationsApi.startIntakeConversationRaw(
+    const response = await this.conversationsApi.startIntakeConversationRaw(
       {
         productId: options.productId,
         xActorId: options.actorId,
@@ -586,6 +593,9 @@ export class NevaBridgeClient {
       },
       {signal: options.signal},
     );
+    // The generator types only the 201 answer to a start with attachments; a
+    // start with userMessage answers 202 with its turn id.
+    return new JSONApiResponse(response.raw, IntakeConversationStartedFromJSON);
   }
 
   private sendStartIntakeTurn(

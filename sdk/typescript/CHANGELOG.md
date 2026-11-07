@@ -10,6 +10,10 @@
 
 ### Changed
 
+- The vendored contract moves to the revision with the voice operations and with Generic Intake starts that hold
+  attachments before the first message. This SDK revision adds no methods for either. `startIntakeConversation`
+  still reads the answer to a start with `userMessage`; read the answer to a start with `attachments` through
+  `json.startIntakeConversation`.
 - `X-Actor-Name` carries a display name of printable ASCII without `%` as it is. Other names stay percent-encoded.
   NevaBridge decodes both, so the stored name does not change.
 
