@@ -52,6 +52,51 @@ public static class IntakeChatText
     /// <summary>The accessible name of a file's remove button; <c>{0}</c> is the file name.</summary>
     public const string RemoveNamedFile = "Remove {0}";
 
+    public const string Dictate = "Dictate";
+
+    public const string StopDictating = "Stop dictating";
+
+    public const string DictateTooltip = "Type what you say into the message box";
+
+    public const string Talk = "Talk";
+
+    public const string TalkTooltip = "Talk with the assistant hands-free: it sends after a short pause and reads the reply aloud";
+
+    public const string VoiceLanguageLabel = "Speech language";
+
+    public const string SendNow = "Send now";
+
+    public const string StopReading = "Stop reading";
+
+    public const string EndVoiceMode = "End voice mode";
+
+    public const string EndVoiceModeTooltip = "Escape also ends voice mode; words not yet sent go into the message box";
+
+    public const string OpeningMicrophone = "Opening the microphone";
+
+    public const string Listening = "Listening";
+
+    public const string WaitingForReply = "Waiting for the reply";
+
+    public const string ReadingAloud = "Reading the reply aloud";
+
+    public const string MicrophoneUnavailable =
+        "The microphone could not be opened. Check that one is connected and that Windows allows this application to use it.";
+
+    public const string VoiceOff = "Voice input is turned off for your organization.";
+
+    public const string RecognitionStoppedDictate =
+        "Speech recognition stopped. What was heard is in the message box. Choose Dictate to start again.";
+
+    public const string RecognitionStoppedTalk =
+        "Speech recognition stopped. Anything heard is in the message box. Choose Talk to start again.";
+
+    public const string SpeechFailed = "The reply could not be read aloud. It is in the chat, and voice mode listens again.";
+
+    public const string SpokenNotSent = "Your spoken message was not sent, so voice mode ended. Its words are in the message box.";
+
+    public const string VoiceModeClosed = "This chat is finished, so voice mode ended.";
+
     /// <summary>What the assistant is doing, from a turn's last <c>status</c> event.</summary>
     public static string Progress(string phase, string? tool) => (phase, tool) switch
     {

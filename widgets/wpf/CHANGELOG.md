@@ -8,6 +8,18 @@ classic chat, which is unchanged.
 
 ### Added
 
+- Dictation and a hands-free conversation in the native Generic Intake chat, offered through
+  `IntakeChatOptions.Voice` (`IntakeChatVoice`) and run by `IntakeChatViewModel.Voice`. Dictate
+  types what the reporter says into the message box; Talk sends after a pause, reads the reply
+  aloud and listens again. English or Deutsch, chosen in the chat; `IntakeChatOptions.VoiceLanguage`
+  sets the first choice.
+- `INevaBridgeVoice` (`CreateTranscriptionSessionAsync`, `SynthesizeSpeechAsync`), separate from
+  the other interfaces so existing implementations keep compiling. The sample's `NevaBridgeClient`
+  implements it.
+- `TranscribeListener`, which streams a microphone to Amazon Transcribe through NevaBridge's
+  presigned sessions, with the `IMicrophone`, `ISpeechPlayer` and `ITranscribeSocket` seams, and
+  `NAudioMicrophone` and `NAudioSpeechPlayer` on Windows audio.
+- **New dependency:** `NAudio` 2.2.1 (MIT), next to WebView2.
 - `NevaBridgeIntakeChatControl` with `IntakeChatViewModel`: a native Generic Intake chat. It follows
   each turn as it runs, offers Finish, lists the filed reports once the conversation has ended,
   and attaches, lists and removes files when given a file picker.

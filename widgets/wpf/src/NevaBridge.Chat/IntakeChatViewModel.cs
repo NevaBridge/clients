@@ -29,8 +29,53 @@ public sealed record IntakeChatOptions
     /// </summary>
     public Func<Task<PickedFile?>>? PickFile { get; init; }
 
-    /// <summary>Waits between retries of a failed poll. Replaceable so tests need not wait.</summary>
+    /// <summary>
+    /// Dictation and the hands-free conversation. Leave it null when voice is off, in your
+    /// configuration or for the tenant (<c>voiceDictation</c>, <c>voiceConversation</c>); the
+    /// chat then offers none.
+    /// </summary>
+    public IntakeChatVoice? Voice { get; init; }
+
+    /// <summary>
+    /// The language voice listens and speaks in at first; the reporter can change it. Null follows
+    /// <see cref="System.Globalization.CultureInfo.CurrentUICulture"/>.
+    /// </summary>
+    public VoiceLanguage? VoiceLanguage { get; init; }
+
+    /// <summary>Waits between retries of a failed poll and times voice. Replaceable so tests need not wait.</summary>
     public Func<TimeSpan, CancellationToken, Task> Delay { get; init; } = Task.Delay;
+}
+
+/// <summary>What the chat needs to offer voice, and which of the two voice features it offers.</summary>
+/// <param name="Api">NevaBridge's voice operations.</param>
+/// <param name="Microphone">The microphone to listen through.</param>
+/// <param name="Player">Plays the reply when it is read aloud.</param>
+public sealed record IntakeChatVoice(INevaBridgeVoice Api, IMicrophone Microphone, ISpeechPlayer Player)
+{
+    /// <summary>Offer dictation. Set it only when the tenant has <c>voiceDictation</c>.</summary>
+    public bool Dictation { get; init; }
+
+    /// <summary>Offer the hands-free conversation. Set it only when the tenant has <c>voiceConversation</c>.</summary>
+    public bool HandsFree { get; init; }
+
+    /// <summary>Creates the connection to Amazon Transcribe for each recognition session.</summary>
+    public Func<ITranscribeSocket> CreateSocket { get; init; } = () => new WebSocketTranscribeSocket();
+}
+
+/// <summary>How a spoken message's send ended, for the voice loop.</summary>
+internal enum SpokenSendOutcome
+{
+    /// <summary>The conversation saved it; its reply is <see cref="IntakeChatViewModel.LatestReply"/>.</summary>
+    Saved,
+
+    /// <summary>It was not sent; its words are back in the composer.</summary>
+    Kept,
+
+    /// <summary>Its reply could not be loaded; Check again settles it.</summary>
+    Unconfirmed,
+
+    /// <summary>The window closed.</summary>
+    Closed,
 }
 
 /// <summary>
@@ -68,6 +113,8 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     private string? _liveReply;
     private string? _errorText;
     private string? _attachmentNotice;
+    private bool _sendingSpoken;
+    private SpokenSendOutcome _sendOutcome;
 
     public IntakeChatViewModel(
         INevaBridgeIntakeConversations conversations,
@@ -81,7 +128,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         _options = options ?? new IntakeChatOptions();
         SendCommand = new AsyncCommand(
             () => SendAsync(Draft.Trim(), finish: false, fromDraft: true),
-            () => !IsBusy && !IsEnded && _unconfirmed is null && !string.IsNullOrWhiteSpace(Draft));
+            () => !IsBusy && !IsEnded && _unconfirmed is null && !string.IsNullOrWhiteSpace(Draft) && !VoiceHoldsComposer);
         FinishCommand = new AsyncCommand(
             () => SendAsync(IntakeChatText.FinishMessage, finish: true, fromDraft: false),
             () => CanFinish);
@@ -94,6 +141,15 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
                 await RefreshAttachmentsAsync();
             },
             () => FilesUnknown && OffersAttachments && !_isAttaching);
+        if (_options.Voice is { } voice && (voice.Dictation || voice.HandsFree))
+        {
+            Voice = new IntakeVoiceViewModel(
+                this,
+                voice,
+                _options.VoiceLanguage ?? VoiceLanguage.For(System.Globalization.CultureInfo.CurrentUICulture),
+                _options.Delay,
+                _closing.Token);
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -105,6 +161,9 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>What the conversation filed, once it has ended.</summary>
     public ObservableCollection<FiledReportItem> FiledReports { get; } = [];
+
+    /// <summary>Dictation and the hands-free conversation; null when this chat offers no voice.</summary>
+    public IntakeVoiceViewModel? Voice { get; }
 
     public AsyncCommand SendCommand { get; }
 
@@ -202,7 +261,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
 
     public bool CanFinish =>
         _conversationId is not null && !IsBusy && !IsEnded && !_isAttaching && _unconfirmed is null
-        && string.IsNullOrWhiteSpace(Draft);
+        && string.IsNullOrWhiteSpace(Draft) && !VoiceHoldsComposer;
 
     /// <summary>Why Finish is unavailable while the composer holds text.</summary>
     public string? FinishHint =>
@@ -221,11 +280,39 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         ? FiledReports.Count == 0 ? IntakeChatText.Ended + " " + IntakeChatText.NothingFiled : IntakeChatText.Ended
         : null;
 
+    /// <summary>The newest saved reply, read aloud after a spoken message.</summary>
+    internal string? LatestReply => _transcript.Count > 0 && _transcript[^1].Role != "user" ? _transcript[^1].Content : null;
+
+    /// <summary>Dictation or voice mode holds the composer: Send and Finish wait.</summary>
+    private bool VoiceHoldsComposer => Voice?.HoldsComposer == true;
+
     public void Dispose()
     {
         // Not disposed: operations still running check it once they are cancelled.
         _closing.Cancel();
+        Voice?.Close();
     }
+
+    /// <summary>
+    /// Sends what the reporter said on the same path as a typed message. When it is not sent, its
+    /// words go back into the composer after the text typed before voice mode.
+    /// </summary>
+    internal async Task<SpokenSendOutcome> SendSpokenAsync(string text)
+    {
+        _sendingSpoken = true;
+        try
+        {
+            await SendAsync(text, finish: false, fromDraft: false);
+            return _closing.IsCancellationRequested ? SpokenSendOutcome.Closed : _sendOutcome;
+        }
+        finally
+        {
+            _sendingSpoken = false;
+        }
+    }
+
+    /// <summary>Re-checks the commands after voice took or released the composer.</summary>
+    internal void RaiseComposerChanged() => RaiseCommands();
 
     private async Task SendAsync(string text, bool finish, bool fromDraft)
     {
@@ -234,6 +321,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
             Draft = string.Empty;
         }
 
+        _sendOutcome = SpokenSendOutcome.Saved;
         ErrorText = null;
         IsBusy = true;
         ShowTranscript(pendingText: text);
@@ -438,6 +526,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         ErrorText = null;
         IsBusy = true;
         ShowTranscript(pendingText: unconfirmed.Text);
+        _sendingSpoken = unconfirmed.Spoken;
         try
         {
             if (unconfirmed is { FirstTurn: true, TurnId: not null })
@@ -455,6 +544,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         }
         finally
         {
+            _sendingSpoken = false;
             ProgressText = null;
             LiveReply = null;
             IsBusy = false;
@@ -687,17 +777,24 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         RaiseCommands();
     }
 
-    /// <summary>Puts an unsent message back in the composer, ahead of anything typed since.</summary>
+    /// <summary>
+    /// Puts an unsent message back in the composer: a typed one ahead of anything typed since, a
+    /// spoken one after the text typed before voice mode, each on its own line.
+    /// </summary>
     private void KeepInComposer(string text, string reason)
     {
-        Draft = string.IsNullOrWhiteSpace(Draft) ? text : text + Environment.NewLine + Draft;
+        _sendOutcome = SpokenSendOutcome.Kept;
+        Draft = string.IsNullOrWhiteSpace(Draft) ? text
+            : _sendingSpoken ? Draft.TrimEnd() + Environment.NewLine + text
+            : text + Environment.NewLine + Draft;
         ErrorText = reason;
     }
 
     private void ShowUnconfirmed(Unconfirmed unconfirmed)
     {
+        _sendOutcome = SpokenSendOutcome.Unconfirmed;
         ShowTranscript(pendingText: unconfirmed.Text);
-        SetUnconfirmed(unconfirmed);
+        SetUnconfirmed(unconfirmed with { Spoken = _sendingSpoken });
         ErrorText = IntakeChatText.Unreadable;
     }
 
@@ -739,6 +836,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         OnPropertyChanged(nameof(CanFinish));
         OnPropertyChanged(nameof(CanAttach));
         OnPropertyChanged(nameof(FinishHint));
+        Voice?.RaiseCommands();
     }
 
     private bool Set<T>(ref T field, T value, [CallerMemberName] string? name = null)
@@ -762,6 +860,9 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     /// </summary>
     private sealed record Unconfirmed(string Text, int SavedBefore, string? TurnId, string? Cursor, bool FirstTurn)
     {
+        /// <summary>The message was spoken; if it is not saved, its words go after the typed text.</summary>
+        public bool Spoken { get; init; }
+
         /// <summary>The reply as far as the events up to <see cref="Cursor"/> wrote it.</summary>
         public string? ReplySoFar { get; init; }
     }

@@ -2,5 +2,7 @@
   "genericIntakeChat": true,
   "classicChat": true,
   "webChat": true,
-  "attachments": true
+  "attachments": true,
+  "dictation": true,
+  "handsFreeVoice": true
 }

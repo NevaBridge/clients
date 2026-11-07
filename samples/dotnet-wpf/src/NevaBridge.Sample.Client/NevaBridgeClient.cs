@@ -18,10 +18,14 @@ namespace NevaBridge.Sample.Client;
 /// user of that application may see all of the tenant's conversations and act under any
 /// reporter identity and role. Otherwise, move these calls into a service the users cannot
 /// inspect, and give the chat controls an <see cref="INevaBridgeConversations"/>, an
-/// <see cref="INevaBridgeIntakeConversations"/> and an <see cref="INevaBridgeWebChatApi"/> that
-/// call it.
+/// <see cref="INevaBridgeIntakeConversations"/>, an <see cref="INevaBridgeVoice"/> and an
+/// <see cref="INevaBridgeWebChatApi"/> that call it.
 /// </remarks>
-public sealed class NevaBridgeClient : INevaBridgeConversations, INevaBridgeIntakeConversations, INevaBridgeWebChatApi
+public sealed class NevaBridgeClient :
+    INevaBridgeConversations,
+    INevaBridgeIntakeConversations,
+    INevaBridgeVoice,
+    INevaBridgeWebChatApi
 {
     /// <summary>Seconds a turn-events read waits for a first new event.</summary>
     private const int PollWaitSeconds = 20;
@@ -140,6 +144,22 @@ public sealed class NevaBridgeClient : INevaBridgeConversations, INevaBridgeInta
             throw ApiErrors.FromResponse((int)response.StatusCode, body);
         }
     }
+
+    /// <remarks>The session's address is a credential; this client never logs it.</remarks>
+    public Task<TranscriptionSession> CreateTranscriptionSessionAsync(
+        VoiceLanguage language,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<TranscriptionSession>(
+            CreateRequest(HttpMethod.Post, "v1/voice/transcription-sessions", new TranscriptionSessionRequest(language.Code)),
+            cancellationToken);
+
+    public Task<SpeechSynthesis> SynthesizeSpeechAsync(
+        string text,
+        VoiceLanguage language,
+        CancellationToken cancellationToken = default) =>
+        SendAsync<SpeechSynthesis>(
+            CreateRequest(HttpMethod.Post, "v1/voice/speech", new SpeechRequest(text, language.Code)),
+            cancellationToken);
 
     Task<JsonElement> INevaBridgeWebChatApi.StartConversationAsync(
         string productId,
@@ -385,4 +405,8 @@ public sealed class NevaBridgeClient : INevaBridgeConversations, INevaBridgeInta
     private sealed record AttachmentCommand(string AttachmentId);
 
     private sealed record AttachmentList(IReadOnlyList<Attachment> Attachments);
+
+    private sealed record TranscriptionSessionRequest(string LanguageCode);
+
+    private sealed record SpeechRequest(string Text, string LanguageCode);
 }

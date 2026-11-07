@@ -7,10 +7,10 @@
     <PackageId>NevaBridge.Wpf</PackageId>
     <Version>0.1.0</Version>
     <Authors>NevaBridge</Authors>
-    <Description>Embed the NevaBridge chat in a WPF application: a native chat control, the NevaBridge web chat in WebView2, and settings providers for the API key.</Description>
+    <Description>Embed the NevaBridge chat in a WPF application: a native chat control with dictation and a hands-free conversation, the NevaBridge web chat in WebView2, and settings providers for the API key.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <PackageTags>nevabridge;wpf;webview2;chat;support</PackageTags>
+    <PackageTags>nevabridge;wpf;webview2;chat;support;voice</PackageTags>
     <!-- NevaBridge.Chat ships inside this package instead of as a separate dependency. -->
     <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeNevaBridgeChat</TargetsForTfmSpecificBuildOutput>
   </PropertyGroup>
@@ -21,6 +21,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <!-- Microphone capture and speech playback for the Generic Intake chat's voice. -->
+    <PackageReference Include="NAudio" Version="2.2.1" />
   </ItemGroup>
 
   <ItemGroup>

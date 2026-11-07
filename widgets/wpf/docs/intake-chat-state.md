@@ -50,6 +50,46 @@ against all of them at once.
 
 15. Disposing the view model, when its window closes, cancels every request. Cancellation caused
     by closing ends any operation quietly; nothing is shown and no exception leaves a command.
+    Voice stops too: the microphone closes, reading stops, and words heard but not sent are
+    discarded with everything else.
+
+### Voice
+
+`IntakeVoiceViewModel` (`chat.Voice`) keeps these rules on top of the ones above. It exists only
+when the host passes an `IntakeChatVoice` with dictation, the hands-free conversation, or both.
+
+16. A spoken message is sent on the same path as a typed one, so rules 1 to 9 hold for it,
+    including rule 9's exception. When it is not sent, its words go back into the composer on
+    their own line after the text typed before voice mode, and voice mode ends.
+17. While dictation runs or voice mode is on, Send, Finish and the language menu wait. Dictation
+    appends settled words to the composer text it started from, separated by a space, and shows
+    unsettled words apart; stopping keeps both. A change to the composer that dictation did not
+    make, such as a typed message the chat put back, stops dictation at once, and so does the
+    conversation closing.
+18. In voice mode the microphone is open only while listening. 1.2 seconds after the last final
+    phrase, once no phrase of any session is still being revised and no rotated-out session is
+    still draining, or on Send now, what was heard is sent and the microphone closes until the reply has
+    been read, so the reply is never heard as the reporter's speech.
+19. The reply is read sentence by sentence as the live reply completes sentences. At most one
+    synthesis runs ahead of the sentence being read, and the next one starts only after the
+    current one's audio arrived. Each synthesis counts as soon as it completes, so a refusal for
+    the next sentence takes effect while the current one plays. After `done` the saved reply adds what the live text had not
+    delivered; if it does not continue what was already read, nothing more is read.
+20. Stop reading drops the rest of that reply, the saved addition included. Voice mode listens
+    again once the turn is done, as after a reply read to its end. A closed conversation ends
+    voice mode after its reply was read.
+21. End voice mode and Escape put words heard but not sent into the composer, as in rule 16.
+22. A 403 from any voice call switches voice off for this chat: no voice call follows. A 402 ends
+    dictation or voice mode with NevaBridge's message, and voice stays offered. A missing or denied
+    microphone says so, and voice stays offered. Recognition that stops keeps what was heard and
+    offers to start again. A sentence that cannot be synthesized or played for any other reason is
+    read past, and voice mode listens again once the turn is done.
+23. Each listening session requests a paid recognition session and moves to a new one 3 seconds
+    before the 60 paid seconds run out. While the previous session drains, both report; results
+    carry their session, and the heard text, and the composer when dictation stops, keep the
+    sessions' order. Listening stops while waiting and reading, so no session
+    is requested then. The session's presigned address never appears in a notice, an exception
+    message or `ToString()`.
 
 ## Why attachments are one serialized unit
 
@@ -62,4 +102,5 @@ same failure handling (rules 11 to 15), so a new case needs no new guard: it is 
 rule for its kind of failure.
 
 The turn rules (1 to 9) mirror the NevaBridge web chat page, which recovers from the same lost
-answers the same way.
+answers the same way. The voice rules (16 to 23) follow the NevaBridge web app's voice, so the two
+behave alike.

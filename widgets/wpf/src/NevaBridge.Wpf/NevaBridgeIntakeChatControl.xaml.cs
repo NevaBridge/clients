@@ -10,7 +10,9 @@ namespace NevaBridge.Wpf;
 /// <summary>
 /// A chat panel that runs one NevaBridge Generic Intake conversation. Set its DataContext to an
 /// <see cref="IntakeChatViewModel"/>, and pass <see cref="PickFileAsync"/> as
-/// <see cref="IntakeChatOptions.PickFile"/> to offer attachments.
+/// <see cref="IntakeChatOptions.PickFile"/> to offer attachments. To offer voice, pass an
+/// <see cref="IntakeChatVoice"/> with a <see cref="NAudioMicrophone"/> and a
+/// <see cref="NAudioSpeechPlayer"/> as <see cref="IntakeChatOptions.Voice"/>.
 /// </summary>
 public partial class NevaBridgeIntakeChatControl : UserControl
 {
@@ -18,6 +20,7 @@ public partial class NevaBridgeIntakeChatControl : UserControl
     {
         InitializeComponent();
         DataContextChanged += OnDataContextChanged;
+        PreviewKeyDown += OnPreviewKeyDown;
     }
 
     /// <summary>Shows the operating system's file dialog over the window holding this control.</summary>
@@ -29,13 +32,39 @@ public partial class NevaBridgeIntakeChatControl : UserControl
         {
             previous.Messages.CollectionChanged -= ScrollToNewestMessage;
             previous.PropertyChanged -= ScrollWithTheLiveReply;
+            if (previous.Voice is { } voice)
+            {
+                voice.DictationEnded -= FocusTheEndOfTheDraft;
+            }
         }
 
         if (e.NewValue is IntakeChatViewModel current)
         {
             current.Messages.CollectionChanged += ScrollToNewestMessage;
             current.PropertyChanged += ScrollWithTheLiveReply;
+            if (current.Voice is { } voice)
+            {
+                voice.DictationEnded += FocusTheEndOfTheDraft;
+            }
         }
+    }
+
+    // Escape ends voice mode wherever the focus is in the chat.
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape
+            && DataContext is IntakeChatViewModel { Voice: { IsVoiceModeOn: true } voice }
+            && voice.EndVoiceModeCommand.CanExecute(null))
+        {
+            voice.EndVoiceModeCommand.Execute(null);
+            e.Handled = true;
+        }
+    }
+
+    private void FocusTheEndOfTheDraft(object? sender, EventArgs e)
+    {
+        DraftBox.Focus();
+        DraftBox.CaretIndex = DraftBox.Text.Length;
     }
 
     // Handled in the preview phase because a multi-line TextBox consumes Ctrl+Enter as a line

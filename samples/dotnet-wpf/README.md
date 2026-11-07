@@ -8,11 +8,13 @@ own application.
 The example is a stand-in business app ("Contoso Billing") with one entry per chat:
 
 - **Support assistant** opens the native Generic Intake chat: the assistant works out what the
-  reporter needs, one conversation can file several reports, and files can be attached.
+  reporter needs, one conversation can file several reports, files can be attached, and the
+  reporter can dictate or talk hands-free.
 - **Report a problem** opens the native classic chat, where the reporter picks the report type.
 - **The NevaBridge mark** opens the NevaBridge web chat in WebView2.
 
-Each chat, and attachments, can be switched on and off in a [features file](#features-file).
+Each chat, attachments, dictation and the hands-free conversation can be switched on and off in a
+[features file](#features-file).
 
 For your own application, follow the [WPF integration guide](../../widgets/wpf/README.md). It
 shows how to build the components into your app and use database settings for three options:
@@ -122,15 +124,19 @@ read at start-up:
   "genericIntakeChat": true,
   "classicChat": true,
   "webChat": true,
-  "attachments": true
+  "attachments": true,
+  "dictation": true,
+  "handsFreeVoice": true
 }
 ```
 
-Set a key to `false` to hide that chat, or to turn off attachments in the Generic Intake chat and
-the web chat. Every key is required: a missing file, a missing or unknown key, or a value other
-than `true` or `false` stops the application with a message naming the problem. A switched-on
-feature still needs the tenant's NevaBridge feature gate: `genericIntake` for the Generic Intake
-chat and `chatAttachments` for attachments. The file holds no secrets.
+Set a key to `false` to hide that chat, to turn off attachments in the Generic Intake chat and the
+web chat, or to turn off Dictate or Talk in the Generic Intake chat. Every key is required: a
+missing file, a missing or unknown key, or a value other than `true` or `false` stops the
+application with a message naming the problem. A switched-on feature still needs the tenant's
+NevaBridge feature gate: `genericIntake` for the Generic Intake chat, `chatAttachments` for
+attachments, `voiceDictation` for dictation and `voiceConversation` for the hands-free
+conversation. The file holds no secrets.
 
 ## Where to look
 
@@ -191,6 +197,32 @@ version of this example. The classic chat keeps working; Generic Intake is added
 Known limitation: if the answer to the very first message's start is lost on the network, the chat
 cannot find that conversation again, and sending the message again starts a second one.
 
+## Adding voice to your own native chat
+
+For a native Generic Intake chat built from an earlier version of this example. Without these
+steps the chat keeps working without voice.
+
+1. Update your copy of `widgets/wpf` to this revision. It adds the `NAudio` package to
+   `NevaBridge.Wpf`.
+2. Implement `INevaBridgeVoice` in your API client by copying `CreateTranscriptionSessionAsync` and
+   `SynthesizeSpeechAsync` from `src/NevaBridge.Sample.Client/NevaBridgeClient.cs`, with their two
+   request records. If your client calls your own backend, add the same operations there and
+   return the session's address unchanged; it is a credential, so keep it out of logs:
+
+   | Operation                         | Request                                                         |
+   | --------------------------------- | --------------------------------------------------------------- |
+   | `CreateTranscriptionSessionAsync` | `POST /v1/voice/transcription-sessions` with `{"languageCode"}` |
+   | `SynthesizeSpeechAsync`           | `POST /v1/voice/speech` with `{"text", "languageCode"}`         |
+
+3. Where you create the `IntakeChatViewModel`, pass `Voice` as
+   `NevaBridgeIntegration.CreateIntakeChatAsync` does: an `IntakeChatVoice` with your client, a
+   `NAudioMicrophone` and a `NAudioSpeechPlayer`, `Dictation` only with `voiceDictation` and
+   `HandsFree` only with `voiceConversation`. Optionally set `VoiceLanguage`.
+4. If you use the features file, add `dictation` and `handsFreeVoice` to your copy of
+   `SampleFeatures.cs`, `NevaBridgeFeatureSwitches.cs` and `nevabridge-features.json`.
+5. Test on Windows with a microphone against a sandbox product: dictate a sentence, then press
+   Talk, say what is wrong, wait for the reply to be read, and end voice mode.
+
 ## Troubleshooting
 
 | Symptom                                                          | Cause                                                                                                                                                                |
@@ -201,6 +233,8 @@ cannot find that conversation again, and sending the message again starts a seco
 | The web chat says the WebView2 Runtime is not installed          | Install the WebView2 Runtime (see prerequisites).                                                                                                                    |
 | The chat says NevaBridge refused the request (401 or 403)        | The key was revoked, belongs to another environment, or the product id is wrong.                                                                                     |
 | No "Attach file" button                                          | `attachments` is off in the features file, or your organization lacks the feature.                                                                                   |
+| No "Dictate" or "Talk" button                                    | `dictation` or `handsFreeVoice` is off in the features file, or your organization lacks `voiceDictation` or `voiceConversation`.                                     |
+| "The microphone could not be opened"                             | No microphone is connected, or Windows Settings > Privacy & security > Microphone does not let desktop apps use it.                                                  |
 | No "Support assistant" entry                                     | `genericIntakeChat` is off or your organization lacks Generic Intake. When the features could not be read, a bar above the invoices says why and offers Check again. |
 | The application stops with "NevaBridge features file"            | The features file is missing or invalid; the message names the problem.                                                                                              |
 

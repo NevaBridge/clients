@@ -53,6 +53,7 @@
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- Header -->
@@ -182,18 +183,75 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
 
-            <!-- Composer -->
-            <Grid Grid.Row="5" Margin="12,10,12,12">
+            <!-- Voice notice: why voice stopped or what went wrong -->
+            <Border Grid.Row="5" Margin="12,6,12,0" Style="{StaticResource NevaBridge.Banner}" Tag="{Binding Voice.Notice}"
+                    Background="{DynamicResource NevaBridge.ErrorBrush}">
+                <TextBlock Text="{Binding Voice.Notice}" TextWrapping="Wrap" />
+            </Border>
+
+            <!-- Composer, replaced by the voice panel while voice mode is on -->
+            <Grid Grid.Row="6" Margin="12,10,12,12">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Voice.IsVoiceModeOn}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBox x:Name="DraftBox" Grid.Column="0" MinHeight="54" MaxHeight="140" Padding="4"
-                         AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                         Text="{Binding Draft, UpdateSourceTrigger=PropertyChanged}"
-                         IsEnabled="{Binding IsOpen}"
-                         ToolTip="{x:Static local:IntakeChatText.SendTooltip}"
-                         PreviewKeyDown="OnDraftPreviewKeyDown" />
+                <StackPanel Grid.Column="0">
+                    <TextBox x:Name="DraftBox" MinHeight="54" MaxHeight="140" Padding="4"
+                             AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                             Text="{Binding Draft, UpdateSourceTrigger=PropertyChanged}"
+                             IsEnabled="{Binding IsOpen}"
+                             IsReadOnly="{Binding Voice.IsDictating, FallbackValue=False}"
+                             ToolTip="{x:Static local:IntakeChatText.SendTooltip}"
+                             PreviewKeyDown="OnDraftPreviewKeyDown" />
+
+                    <!-- Words dictation is still recognizing, apart until they settle -->
+                    <TextBlock Margin="4,2,0,0" Foreground="#888" FontStyle="Italic" TextWrapping="Wrap" Text="{Binding Voice.Interim}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Style.Triggers>
+                                    <Trigger Property="Text" Value="">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0"
+                                Visibility="{Binding Voice.OffersVoice, Converter={StaticResource VisibleWhenTrue}, FallbackValue=Collapsed}">
+                        <Button Padding="10,4" Command="{Binding Voice.ToggleDictationCommand}"
+                                ToolTip="{x:Static local:IntakeChatText.DictateTooltip}"
+                                Visibility="{Binding Voice.OffersDictation, Converter={StaticResource VisibleWhenTrue}, FallbackValue=Collapsed}">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Content" Value="{x:Static local:IntakeChatText.Dictate}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Voice.IsDictating}" Value="True">
+                                            <Setter Property="Content" Value="{x:Static local:IntakeChatText.StopDictating}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button Margin="6,0,0,0" Padding="10,4" Content="{x:Static local:IntakeChatText.Talk}"
+                                Command="{Binding Voice.TalkCommand}" ToolTip="{x:Static local:IntakeChatText.TalkTooltip}"
+                                Visibility="{Binding Voice.OffersHandsFree, Converter={StaticResource VisibleWhenTrue}, FallbackValue=Collapsed}" />
+                        <ComboBox Margin="6,0,0,0" MinWidth="90" ItemsSource="{Binding Voice.Languages}"
+                                  SelectedItem="{Binding Voice.Language}" DisplayMemberPath="Name"
+                                  IsEnabled="{Binding Voice.CanChooseLanguage, FallbackValue=False}"
+                                  AutomationProperties.Name="{x:Static local:IntakeChatText.VoiceLanguageLabel}"
+                                  ToolTip="{x:Static local:IntakeChatText.VoiceLanguageLabel}" />
+                    </StackPanel>
+                </StackPanel>
                 <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Bottom">
                     <Button Content="{x:Static local:IntakeChatText.Send}" Style="{StaticResource NevaBridge.PrimaryButton}" Command="{Binding SendCommand}" />
                     <Button Content="{x:Static local:IntakeChatText.AttachFile}" Margin="0,6,0,0" Padding="10,6" Command="{Binding AttachCommand}"
@@ -203,6 +261,27 @@
                             ToolTip="{Binding FinishHint, TargetNullValue={x:Static local:IntakeChatText.FinishTooltip}}" />
                 </StackPanel>
             </Grid>
+
+            <!-- Voice panel: the hands-free conversation -->
+            <Border Grid.Row="6" Margin="12,10,12,12" Padding="10,8" CornerRadius="4" BorderThickness="1"
+                    BorderBrush="{DynamicResource NevaBridge.BorderBrush}"
+                    Visibility="{Binding Voice.IsVoiceModeOn, Converter={StaticResource VisibleWhenTrue}, FallbackValue=Collapsed}">
+                <StackPanel>
+                    <TextBlock FontWeight="SemiBold" Text="{Binding Voice.PhaseText}" />
+                    <TextBlock Margin="0,4,0,0" TextWrapping="Wrap" Text="{Binding Voice.Heard}" />
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="{x:Static local:IntakeChatText.SendNow}" Margin="0,0,6,0" Style="{StaticResource NevaBridge.PrimaryButton}"
+                                Command="{Binding Voice.SendNowCommand}"
+                                Visibility="{Binding Voice.IsListening, Converter={StaticResource VisibleWhenTrue}, FallbackValue=Collapsed}" />
+                        <Button Content="{x:Static local:IntakeChatText.StopReading}" Margin="0,0,6,0" Padding="10,4"
+                                Command="{Binding Voice.StopReadingCommand}"
+                                Visibility="{Binding Voice.IsSpeaking, Converter={StaticResource VisibleWhenTrue}, FallbackValue=Collapsed}" />
+                        <Button Content="{x:Static local:IntakeChatText.EndVoiceMode}" Padding="10,4"
+                                Command="{Binding Voice.EndVoiceModeCommand}"
+                                ToolTip="{x:Static local:IntakeChatText.EndVoiceModeTooltip}" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
         </Grid>
     </Border>
 </UserControl>

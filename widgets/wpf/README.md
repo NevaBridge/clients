@@ -178,6 +178,51 @@ be loaded offers Check again. One case cannot be recovered: when the answer to t
 message's start is lost, the chat cannot find that conversation, and sending again starts a new
 one. Its texts are English and live in `IntakeChatText`.
 
+#### Dictation and the hands-free conversation
+
+The Generic Intake chat can take spoken input, as the NevaBridge web app does:
+
+- **Dictate** types what the reporter says into the message box, after anything already typed.
+  Words still being recognized are shown apart until they settle; Send waits until dictation stops.
+- **Talk** replaces the composer with a voice panel. The chat sends what the reporter said after a
+  short pause, reads the reply aloud sentence by sentence while it is written, and listens again.
+  The microphone is closed while the reply is on its way and while it is read. Send now, Stop
+  reading and End voice mode (or Escape) control it; words heard but not sent go into the message
+  box when voice mode ends.
+- A small menu chooses English or Deutsch for recognition and speech.
+
+Each needs its own tenant feature: `voiceDictation` for Dictate, `voiceConversation` for Talk.
+Pass an `IntakeChatVoice` only when you offer at least one, and set each switch only when the tenant
+has its feature:
+
+```csharp
+bool dictation = features.GetValueOrDefault("voiceDictation");
+bool handsFree = features.GetValueOrDefault("voiceConversation");
+IntakeChatOptions options = new()
+{
+    // ...
+    Voice = dictation || handsFree
+        ? new IntakeChatVoice(nevaBridge, new NAudioMicrophone(), new NAudioSpeechPlayer())
+        {
+            Dictation = dictation,
+            HandsFree = handsFree,
+        }
+        : null,
+    VoiceLanguage = VoiceLanguage.German, // optional; otherwise the Windows display language decides
+};
+```
+
+`nevaBridge` implements `INevaBridgeVoice` (`CreateTranscriptionSessionAsync` and
+`SynthesizeSpeechAsync`); the sample's `NevaBridgeClient` does. The chat streams the microphone
+straight to Amazon Transcribe over the presigned address NevaBridge returns. That address is a
+credential for the session, so never log it; `TranscriptionSession.ToString()` leaves it out.
+Each recognition session is charged for 60 seconds up front, and the chat asks for the next one
+shortly before it runs out only while it listens. Audio runs through
+[NAudio](https://github.com/naudio/NAudio) (MIT): the microphone through WASAPI, the speech as
+MP3. When Windows privacy settings deny the microphone, the chat says so and keeps offering voice.
+A 403 from a voice call switches voice off for the chat; a 402 ends voice with NevaBridge's
+message.
+
 ## 2. NevaBridge-hosted web chat
 
 Use this when you want UI updates from NevaBridge deployments without redistributing the desktop
@@ -275,8 +320,8 @@ show its message when opening the chat fails. The sample's `ChatErrors.cs` demon
 A direct API integration makes the tenant-wide key accessible to the desktop process, including
 when it is stored in SQL Server or Credential Manager. Anyone who obtains it can read the tenant's
 conversations and act as any reporter. If users must not have that authority, keep the key in a
-backend service and implement `INevaBridgeConversations`, `INevaBridgeIntakeConversations` and
-`INevaBridgeWebChatApi` to call that service instead. `INevaBridgeWebChatApi` returns the API's JSON for each operation unchanged, because
+backend service and implement `INevaBridgeConversations`, `INevaBridgeIntakeConversations`,
+`INevaBridgeVoice` and `INevaBridgeWebChatApi` to call that service instead. `INevaBridgeWebChatApi` returns the API's JSON for each operation unchanged, because
 the bridge passes it to the page as it is.
 
 See the [sample guide](../../samples/dotnet-wpf/README.md) for environment-variable and Credential
