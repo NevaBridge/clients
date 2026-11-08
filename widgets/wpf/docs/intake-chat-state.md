@@ -143,6 +143,13 @@ The design removes the open outcome instead of reasoning about when it closes. I
   upload needs to be known, and no clock is read.
 - D. A listing that shows the admission's id drops the failed row; otherwise listings keep it.
 - E. All of this runs under the one attachment lock (rule 11), and Send waits for it (rule 1).
+- F. A picked file leaves the list only by uploading, by Dismiss, or by a 403 that switches
+  attachments off. A failed admission keeps it as a failed row without an admission, which needs
+  no deletion because no bytes went to it.
+
+After moving every file onto admissions, a fifth review confirmed A to E for all files and found
+one path that broke F (a Retry whose new admission failed dropped the file). That was a missed
+branch of the same family, not a new one, so the fix continued the design instead of replacing it.
 
 Every file follows A to E: the first is admitted by the start, later ones and replacements by
 `RequestAttachmentUploadAsync`. The chat never calls `AttachFileAsync`, which hides its admission. A
