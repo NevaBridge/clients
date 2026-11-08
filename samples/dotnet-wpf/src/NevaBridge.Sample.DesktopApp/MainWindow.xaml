@@ -17,7 +17,7 @@
             </MenuItem>
         </Menu>
 
-        <!-- Why the support assistant is hidden: the tenant's features could not be read. -->
+        <!-- Why support is hidden: the settings or the tenant's features could not be read. -->
         <Border x:Name="FeaturesProblem" DockPanel.Dock="Top" Background="#FFF4E5" Padding="16,6" Visibility="Collapsed">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Content="Check again" Padding="10,3" Click="OnCheckFeaturesAgain" />

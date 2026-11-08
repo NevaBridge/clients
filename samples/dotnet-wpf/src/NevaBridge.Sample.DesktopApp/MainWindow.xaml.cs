@@ -21,20 +21,23 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// One entry per chat the features file switches on. The Generic Intake entry also needs the
-    /// tenant's genericIntake gate, so it stays hidden while the gates are unknown (no settings
-    /// yet, or NevaBridge unreachable), and the window says why, with a way to check again.
+    /// One entry per chat the features file switches on. Every chat needs the NevaBridge settings
+    /// and NevaBridge itself, and the Generic Intake entry also the tenant's genericIntake gate, so
+    /// all entries stay hidden while the gates are unknown (no settings yet, or NevaBridge
+    /// unreachable), and the window says why, with a way to check again.
     /// </summary>
     private void ShowChatEntries(TenantFeatures tenant)
     {
         SampleFeatures file = NevaBridgeFeatureSwitches.File;
+        bool known = tenant.Gates is not null;
         bool intake = tenant.Gates is { } gates && NevaBridgeFeatureSwitches.GenericIntakeChat(gates);
-        bool unknown = file.GenericIntakeChat && tenant.Problem is not null;
-        FeaturesProblemText.Text = unknown ? $"The support assistant is hidden. {tenant.Problem}" : null;
+        bool anyChat = file.GenericIntakeChat || file.ClassicChat || file.WebChat;
+        bool unknown = anyChat && tenant.Problem is not null;
+        FeaturesProblemText.Text = unknown ? $"Support is hidden. {tenant.Problem}" : null;
         FeaturesProblem.Visibility = unknown ? Visibility.Visible : Visibility.Collapsed;
         Show(intake, IntakeChatButton, IntakeChatMenuItem);
-        Show(file.ClassicChat, ClassicChatButton, ClassicChatMenuItem);
-        Show(file.WebChat, WebChatButton, WebChatMenuItem);
+        Show(known && file.ClassicChat, ClassicChatButton, ClassicChatMenuItem);
+        Show(known && file.WebChat, WebChatButton, WebChatMenuItem);
     }
 
     private static void Show(bool visible, params UIElement[] entries)
