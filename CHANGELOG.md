@@ -20,7 +20,9 @@ you last took.
   the conversation and lists the filed reports. This is now the recommended chat; the classic
   chat stays supported.
 - **Attachments** in the Generic Intake chat: attach, list and remove files, with the tenant
-  feature `chatAttachments`.
+  feature `chatAttachments`, also before the first message, as in the NevaBridge web app. A file
+  that does not upload stays listed with Retry and Dismiss. Breaking for anyone who implemented
+  `INevaBridgeIntakeConversations` themselves; see the package changelog.
 - **Voice** in the Generic Intake chat: Dictate (`voiceDictation`) and a hands-free conversation
   that reads replies aloud (`voiceConversation`), in English or German. Adds the `NAudio`
   dependency.
