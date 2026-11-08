@@ -28,9 +28,11 @@ public interface INevaBridgeIntakeConversations
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Uploads a file to an address NevaBridge already issued and confirms it. Fails with
-    /// <see cref="NevaBridgeUploadException"/> when the upload failed: with the status storage
-    /// answered, or with none when no answer arrived, in which case the bytes may still have arrived.
+    /// Uploads a file to an address NevaBridge already issued and confirms it. Calling it again for
+    /// the same address is safe: storage keeps one copy and confirming twice returns the same file.
+    /// When the upload fails, it confirms anyway, since the bytes may have arrived, and fails with
+    /// <see cref="NevaBridgeUploadException"/> only when NevaBridge has none
+    /// (<c>AttachmentNotUploaded</c>).
     /// </summary>
     Task<Attachment> UploadAttachmentAsync(
         string conversationId,

@@ -137,19 +137,39 @@ public sealed class IntakeClientTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task UploadAttachment_whose_bytes_are_refused_confirms_nothing()
+    public async Task UploadAttachment_whose_upload_failed_reports_it_when_NevaBridge_has_no_bytes()
     {
         // Given
-        _api.Respond(403, "");
+        _api.Respond(503, "");
+        _api.Respond(409, """{"error":"AttachmentNotUploaded","message":"The file has not been uploaded."}""");
         AttachmentUpload upload = new("attachment-1", "app.log", new Uri(_api.BaseUrl, "upload/attachment-1"), DateTimeOffset.UnixEpoch);
 
         // When
         NevaBridgeUploadException error = await Assert.ThrowsAsync<NevaBridgeUploadException>(() =>
             _client.UploadAttachmentAsync(ConversationId, upload, new PickedFile("app.log", 1, () => new MemoryStream(new byte[1]))));
 
+        // Then: confirming tells whether the bytes arrived despite the failed upload
+        Assert.Equal(503, error.StatusCode);
+        Assert.Equal(2, _api.Requests.Count);
+        Assert.Equal($"/v1/conversations/{ConversationId}/actions/confirm-attachment-upload", _api.Requests[1].PathAndQuery);
+    }
+
+    [Fact]
+    public async Task UploadAttachment_whose_upload_failed_returns_the_file_when_its_bytes_arrived()
+    {
+        // Given: storage already holds the file from an earlier attempt whose answer was lost
+        _api.Respond(412, "");
+        _api.Respond(200, """
+            {"id":"attachment-1","fileName":"app.log","kind":"text","sizeBytes":1,
+             "uploadedBy":"api:jdoe","uploadedAt":"2026-09-30T10:02:00Z"}
+            """);
+        AttachmentUpload upload = new("attachment-1", "app.log", new Uri(_api.BaseUrl, "upload/attachment-1"), DateTimeOffset.UnixEpoch);
+
+        // When
+        Attachment attachment = await _client.UploadAttachmentAsync(ConversationId, upload, new PickedFile("app.log", 1, () => new MemoryStream(new byte[1])));
+
         // Then
-        Assert.Equal(403, error.StatusCode);
-        Assert.Single(_api.Requests);
+        Assert.Equal("attachment-1", attachment.Id);
     }
 
     [Fact]

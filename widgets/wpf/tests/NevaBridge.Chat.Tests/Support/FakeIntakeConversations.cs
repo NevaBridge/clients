@@ -90,8 +90,13 @@ public sealed class FakeIntakeConversations : INevaBridgeIntakeConversations
         new(status, name, null, name) { TurnId = turnId };
 
     /// <summary>A conversation started without a message, holding one file.</summary>
-    public static HeldIntakeConversation Held(string fileName, string attachmentId = "attachment-1") =>
-        new(ConversationId, [new AttachmentUpload(attachmentId, fileName, new Uri("https://uploads.example.com/" + attachmentId), DateTimeOffset.UnixEpoch)]);
+    /// <remarks>The upload address has expired unless <paramref name="live"/> is set.</remarks>
+    public static HeldIntakeConversation Held(string fileName, string attachmentId = "attachment-1", bool live = false) =>
+        new(ConversationId, [new AttachmentUpload(
+            attachmentId,
+            fileName,
+            new Uri("https://uploads.example.com/" + attachmentId),
+            live ? DateTimeOffset.MaxValue : DateTimeOffset.UnixEpoch)]);
 
     public static NevaBridgeApiException EdgeFailure() => new(504, null, null, "Endpoint request timed out");
 

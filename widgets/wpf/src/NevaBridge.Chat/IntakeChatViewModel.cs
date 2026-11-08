@@ -35,6 +35,9 @@ public sealed record AttachmentItem(string FileName, AttachmentState State)
     /// <summary>Drops a failed file from the list; it can run only for one.</summary>
     public required AsyncCommand DismissCommand { get; init; }
 
+    /// <summary>The admission a failed file was uploaded to, when the chat holds one.</summary>
+    internal AttachmentUpload? Admission { get; init; }
+
     public bool IsUploading => State == AttachmentState.Uploading;
 
     public bool IsUploaded => State == AttachmentState.Uploaded;
@@ -624,14 +627,40 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         });
     }
 
-    private Task RetryAsync(AttachmentItem failed, PickedFile file)
+    private Task RetryAsync(AttachmentItem failed, PickedFile file, AttachmentUpload? admission)
     {
-        if (_conversationId is null || _isAttaching || IsEnded)
+        if (_conversationId is not { } conversationId || _isAttaching || IsEnded)
         {
             return Task.CompletedTask;
         }
 
-        return RunAttachmentAsync(() => UploadAsync(file, Replace(failed, Uploading(file.Name))));
+        // A live admission is uploaded again: storage keeps one copy and confirming twice is harmless.
+        // Once its address has expired, NevaBridge has settled it, so a new upload starts.
+        return RunAttachmentAsync(() => admission is not null && admission.ExpiresAt > DateTimeOffset.UtcNow
+            ? UploadAdmittedAsync(conversationId, file, Replace(failed, Uploading(file.Name)), admission)
+            : UploadAsync(file, Replace(failed, Uploading(file.Name))));
+    }
+
+    /// <summary>Deletes a failed file's admission on NevaBridge, so bytes that did arrive cannot attach it later.</summary>
+    private Task DismissAsync(AttachmentItem failed, AttachmentUpload? admission)
+    {
+        if (admission is null || _conversationId is not { } conversationId)
+        {
+            Attachments.Remove(failed);
+            AttachmentNotice = null;
+            return Task.CompletedTask;
+        }
+
+        if (_isAttaching)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunAttachmentAsync(async () =>
+        {
+            await _conversations.DeleteAttachmentAsync(conversationId, admission.AttachmentId, _closing.Token);
+            Attachments.Remove(failed);
+        });
     }
 
     /// <summary>
@@ -722,8 +751,35 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         }
 
         HoldConversation(held.ConversationId);
-        AttachmentUpload upload = held.Attachments[0];
-        await UploadToAsync(held.ConversationId, file, row, () => _conversations.UploadAttachmentAsync(held.ConversationId, upload, file, _closing.Token));
+        await UploadAdmittedAsync(held.ConversationId, file, row, held.Attachments[0]);
+    }
+
+    /// <summary>
+    /// Uploads to an admission the chat holds. On any failure but a 403 the file stays listed with
+    /// its admission, so Retry uploads to the same admission and Dismiss deletes it: whether or not
+    /// the bytes arrived, neither can leave a second or a forgotten copy behind.
+    /// </summary>
+    private async Task UploadAdmittedAsync(string conversationId, PickedFile file, AttachmentItem row, AttachmentUpload admission)
+    {
+        try
+        {
+            Replace(row, Uploaded(await _conversations.UploadAttachmentAsync(conversationId, admission, file, _closing.Token)));
+        }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+        {
+            Attachments.Remove(row);
+            throw;
+        }
+        catch (Exception error) when (IsForbidden(error))
+        {
+            Attachments.Remove(row);
+            TurnAttachmentsOff();
+        }
+        catch (Exception error)
+        {
+            Replace(row, Failed(file, admission));
+            AttachmentNotice = ChatErrors.Describe(error);
+        }
     }
 
     private async Task UploadToAsync(string conversationId, PickedFile file, AttachmentItem row, Func<Task<Attachment>> upload)
@@ -735,7 +791,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         catch (NevaBridgeUploadException error) when (IsRefusedByStorage(error))
         {
             // Storage refused the bytes, so nothing was attached: the file stays for Retry.
-            Replace(row, Failed(file));
+            Replace(row, Failed(file, admission: null));
             AttachmentNotice = ChatErrors.Describe(error);
         }
         catch (Exception error) when (error is not OperationCanceledException || !_closing.IsCancellationRequested)
@@ -856,21 +912,16 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         return item;
     }
 
-    private AttachmentItem Failed(PickedFile file)
+    /// <param name="admission">The admission the file was uploaded to, when the chat holds one.</param>
+    private AttachmentItem Failed(PickedFile file, AttachmentUpload? admission)
     {
         AttachmentItem? item = null;
         item = new AttachmentItem(file.Name, AttachmentState.Failed)
         {
+            Admission = admission,
             RemoveCommand = Unavailable,
-            RetryCommand = new AsyncCommand(() => RetryAsync(item!, file), () => !IsEnded && !_isAttaching),
-            DismissCommand = new AsyncCommand(
-                () =>
-                {
-                    Attachments.Remove(item!);
-                    AttachmentNotice = null;
-                    return Task.CompletedTask;
-                },
-                () => !_isAttaching),
+            RetryCommand = new AsyncCommand(() => RetryAsync(item!, file, admission), () => !IsEnded && !_isAttaching),
+            DismissCommand = new AsyncCommand(() => DismissAsync(item!, admission), () => !_isAttaching),
         };
         return item;
     }
@@ -935,8 +986,13 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
-        // Files that are uploading or whose upload failed are not NevaBridge's yet; they stay.
-        List<AttachmentItem> local = Attachments.Where(item => !item.IsUploaded).ToList();
+        // Files that are uploading or whose upload failed are not NevaBridge's yet; they stay, unless
+        // NevaBridge lists a failed file's admission because its bytes arrived after all.
+        HashSet<string> listed = held.Select(attachment => attachment.Id).ToHashSet();
+        List<AttachmentItem> local = Attachments
+            .Where(item => !item.IsUploaded
+                && !(item.Admission is { } admission && listed.Contains(admission.AttachmentId)))
+            .ToList();
         Attachments.Clear();
         foreach (Attachment attachment in held)
         {

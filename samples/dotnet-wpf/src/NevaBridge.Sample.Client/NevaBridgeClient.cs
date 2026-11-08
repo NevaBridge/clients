@@ -129,8 +129,25 @@ public sealed class NevaBridgeClient :
         PickedFile file,
         CancellationToken cancellationToken = default)
     {
-        await PutAsync(upload.UploadUrl, file, cancellationToken).ConfigureAwait(false);
-        return await SendAsync<Attachment>(ConfirmRequest(conversationId, upload.AttachmentId), cancellationToken).ConfigureAwait(false);
+        NevaBridgeUploadException? failed = null;
+        try
+        {
+            await PutAsync(upload.UploadUrl, file, cancellationToken).ConfigureAwait(false);
+        }
+        catch (NevaBridgeUploadException error)
+        {
+            // The bytes may still have arrived, from this attempt or an earlier one; confirming tells.
+            failed = error;
+        }
+
+        try
+        {
+            return await SendAsync<Attachment>(ConfirmRequest(conversationId, upload.AttachmentId), cancellationToken).ConfigureAwait(false);
+        }
+        catch (NevaBridgeApiException error) when (failed is not null && error.ErrorName == "AttachmentNotUploaded")
+        {
+            throw failed;
+        }
     }
 
     public Task<IntakeTurnStarted> StartIntakeTurnAsync(
