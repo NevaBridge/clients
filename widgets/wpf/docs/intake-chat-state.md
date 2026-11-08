@@ -124,6 +124,32 @@ reason, so listing stays. Instead, every attachment operation goes through the s
 same failure handling (rules 11 to 15), so a new case needs no new guard: it is covered by the
 rule for its kind of failure.
 
+## Why a failed first file keeps its admission
+
+An upload's outcome can stay open: storage may take the bytes while its answer is lost, NevaBridge
+attaches arrived bytes even unconfirmed, and a listing omits them while the upload address is live
+and settles them only some time after it expired. Three reviewed designs failed on this:
+treating every failed upload as absent (Retry then attached a second copy), settling by an
+immediate listing (which cannot see a live admission), and reusing the admission until its address
+expired (expiry alone does not settle it). Each patched one path of the same open outcome.
+
+The design removes the open outcome instead of reasoning about when it closes. Invariants:
+
+- A. Every first-file upload the chat started is either listed as uploaded, or held by a failed row
+  that keeps its admission. No path drops an admission without deleting it on NevaBridge.
+- B. Only deleting the admission lets go of it: Dismiss deletes it, and Retry deletes it before a
+  new upload, so at most one copy is ever attached. A failed deletion keeps the row unchanged.
+- C. Deleting succeeds whether the bytes arrived, were confirmed, or never came, so no state of the
+  upload needs to be known, and no clock is read.
+- D. A listing that shows the admission's id drops the failed row; otherwise listings keep it.
+- E. All of this runs under the one attachment lock (rule 11), and Send waits for it (rule 1).
+
+A later file goes through `AttachFileAsync`, whose admission the chat never sees, so it cannot keep
+one: it gets Retry and Dismiss only when storage refused it outright, which leaves nothing to
+attach, and an open outcome is left to listing as before this change. Moving later files onto
+admissions too would make them follow A to E; it is not needed for attaching before the first
+message and would change every host's client.
+
 The turn rules (1 to 9) mirror the NevaBridge web chat page, which recovers from the same lost
 answers the same way. The voice rules (16 to 23) follow the NevaBridge web app's voice, so the two
 behave alike.
