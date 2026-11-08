@@ -15,10 +15,11 @@ classic chat, which is unchanged.
 - Files can be attached before the first message in the native Generic Intake chat, as in the
   NevaBridge web app. The first file starts the conversation without a message and uploads at once;
   the first message waits for uploads still running and starts the first reply at revision 0. A
-  file storage refuses stays listed with Retry and Dismiss and does not hold up the reply.
+  file that does not upload stays listed with Retry and Dismiss, keeping its admission so it can
+  never turn up later as a second copy, and does not hold up the reply.
   Finish is offered once the first reply has arrived, and the chat names the status phase
   `attachments` while the reply waits for image descriptions.
-- `StartHeldIntakeConversationAsync` and `UploadAttachmentAsync` on
+- `StartHeldIntakeConversationAsync`, `RequestAttachmentUploadAsync` and `UploadAttachmentAsync` on
   `INevaBridgeIntakeConversations`, with `StartHeldIntakeConversationRequest`,
   `AttachmentUploadRequest`, `HeldIntakeConversation`, `AttachmentUpload` and
   `NevaBridgeApiException.ConversationId`. The sample's `NevaBridgeClient` implements them.
@@ -55,8 +56,9 @@ classic chat, which is unchanged.
 
 - `AttachmentItem` carries a `State` (`Uploading`, `Uploaded`, `Failed`) with `RetryCommand` and
   `DismissCommand` next to `RemoveCommand`; `Attachment` is set only for an uploaded file. An
-  implementation of `INevaBridgeIntakeConversations` adds `StartHeldIntakeConversationAsync` and
-  `UploadAttachmentAsync`; the sample's `NevaBridgeClient` shows both.
+  implementation of `INevaBridgeIntakeConversations` adds `StartHeldIntakeConversationAsync`,
+  `RequestAttachmentUploadAsync` and `UploadAttachmentAsync`; the sample's `NevaBridgeClient` shows
+  them. The Generic Intake chat no longer calls `AttachFileAsync`.
 - `WebChatBridge` and `NevaBridgeWebChatControl.InitializeAsync` take an `INevaBridgeWebChatApi`
   instead of an `INevaBridgeConversations`. With the sample's `NevaBridgeClient`, pass the same
   object as before. If you replaced it with your own implementation, implement

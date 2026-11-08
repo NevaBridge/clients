@@ -606,8 +606,8 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     // 2. A 403 from any attachment call means staff switched attachments off: the chat stops
     //    offering them.
     // 3. After an action whose outcome is uncertain, the chat lists what NevaBridge holds; when
-    //    that fails too, FilesUnknown says so and RefreshFilesCommand tries again. An upload that
-    //    storage refused attached nothing, so its file stays listed for Retry instead.
+    //    that fails too, FilesUnknown says so and RefreshFilesCommand tries again. A failed upload
+    //    keeps its file listed with its admission, which only deleting releases.
     // 4. Closing the window ends any of them quietly.
 
     private Task AttachAsync()
@@ -719,7 +719,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     {
         if (_conversationId is { } conversationId)
         {
-            await UploadToAsync(conversationId, file, row, () => _conversations.AttachFileAsync(conversationId, _reporter.Id, file, _closing.Token));
+            await AdmitAndUploadAsync(conversationId, file, row);
             return;
         }
 
@@ -740,7 +740,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         {
             // Stored without signed uploads: request this file's upload again, as for a later file.
             HoldConversation(stored);
-            await UploadToAsync(stored, file, row, () => _conversations.AttachFileAsync(stored, _reporter.Id, file, _closing.Token));
+            await AdmitAndUploadAsync(stored, file, row);
             return;
         }
         catch (Exception error) when (error is not OperationCanceledException || !_closing.IsCancellationRequested)
@@ -764,7 +764,8 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// Uploads to an admission the chat holds. On any failure but a 403 the file stays listed with
+    /// Uploads to an admission the chat holds, for the first file and every later one alike. On any
+    /// failure but a 403 the file stays listed with
     /// its admission, which Dismiss deletes and Retry deletes before a new upload: whether or not
     /// the bytes arrived, neither can leave a second or a forgotten copy behind.
     /// </summary>
@@ -788,41 +789,41 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         {
             Replace(row, Failed(file, admission));
             AttachmentNotice = ChatErrors.Describe(error);
+
+            // The bytes may have arrived and been confirmed; a listing that shows the admission drops the row.
+            await ListHeldAttachmentsAsync(conversationId);
         }
     }
 
-    private async Task UploadToAsync(string conversationId, PickedFile file, AttachmentItem row, Func<Task<Attachment>> upload)
+    /// <summary>
+    /// Admits a file to an existing conversation, then uploads to that admission. A failed admission
+    /// leaves nothing to keep: no bytes were sent to it, so it can never attach a file.
+    /// </summary>
+    private async Task AdmitAndUploadAsync(string conversationId, PickedFile file, AttachmentItem row)
     {
+        AttachmentUpload admission;
         try
         {
-            Replace(row, Uploaded(await upload()));
-        }
-        catch (NevaBridgeUploadException error) when (IsRefusedByStorage(error))
-        {
-            // Storage refused the bytes, so nothing was attached: the file stays for Retry.
-            Replace(row, Failed(file, admission: null));
-            AttachmentNotice = ChatErrors.Describe(error);
+            admission = await _conversations.RequestAttachmentUploadAsync(
+                conversationId,
+                _reporter.Id,
+                new AttachmentUploadRequest(file.Name, file.SizeBytes),
+                _closing.Token);
         }
         catch (Exception error) when (error is not OperationCanceledException || !_closing.IsCancellationRequested)
         {
-            // The confirmation may have been saved even though its answer was lost.
             Attachments.Remove(row);
             await ShowAttachmentFailureAsync(conversationId, error);
+            return;
         }
         catch (OperationCanceledException)
         {
             Attachments.Remove(row);
             throw;
         }
-    }
 
-    /// <summary>
-    /// Storage answered and did not take the bytes. Without an answer the bytes may have arrived,
-    /// and 412 means storage already holds them (the upload is sent with If-None-Match: *); a file
-    /// whose bytes arrived is attached by NevaBridge even unconfirmed, so those cases are settled by
-    /// listing, never by Retry.
-    /// </summary>
-    private static bool IsRefusedByStorage(NevaBridgeUploadException error) => error.StatusCode is { } status && status != 412;
+        await UploadAdmittedAsync(conversationId, file, row, admission);
+    }
 
     private void HoldConversation(string conversationId)
     {

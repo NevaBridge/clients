@@ -28,6 +28,17 @@ public interface INevaBridgeIntakeConversations
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Admits one file to a conversation and returns where to upload it; nothing is attached until
+    /// <see cref="UploadAttachmentAsync"/> confirms it. <paramref name="uploaderId"/> is recorded on
+    /// the file. Requires <c>chatAttachments</c>.
+    /// </summary>
+    Task<AttachmentUpload> RequestAttachmentUploadAsync(
+        string conversationId,
+        string uploaderId,
+        AttachmentUploadRequest file,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Uploads a file to an address NevaBridge already issued and confirms it. Calling it again for
     /// the same address is safe: storage keeps one copy and confirming twice returns the same file.
     /// When the upload fails, it confirms anyway, since the bytes may have arrived, and fails with
@@ -67,6 +78,10 @@ public interface INevaBridgeIntakeConversations
     Task<IReadOnlyDictionary<string, bool>> GetFeaturesAsync(CancellationToken cancellationToken = default);
 
     /// <inheritdoc cref="INevaBridgeConversations.AttachFileAsync"/>
+    /// <remarks>
+    /// The Generic Intake chat does not call it: it admits each file itself with
+    /// <see cref="RequestAttachmentUploadAsync"/>, so a failed upload keeps its admission.
+    /// </remarks>
     Task<Attachment> AttachFileAsync(
         string conversationId,
         string uploaderId,

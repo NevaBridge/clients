@@ -90,6 +90,10 @@ public sealed class FakeIntakeConversations : INevaBridgeIntakeConversations
         new(status, name, null, name) { TurnId = turnId };
 
     /// <summary>A conversation started without a message, holding one file.</summary>
+    /// <summary>An admission for a file of a conversation that already exists.</summary>
+    public static AttachmentUpload Admission(string attachmentId = "attachment-1") =>
+        new(attachmentId, "crash.log", new Uri("https://uploads.example.com/" + attachmentId), DateTimeOffset.MaxValue);
+
     /// <remarks>The upload address has expired unless <paramref name="live"/> is set.</remarks>
     public static HeldIntakeConversation Held(string fileName, string attachmentId = "attachment-1", bool live = false) =>
         new(ConversationId, [new AttachmentUpload(
@@ -113,6 +117,13 @@ public sealed class FakeIntakeConversations : INevaBridgeIntakeConversations
         StartHeldIntakeConversationRequest request,
         CancellationToken cancellationToken = default) =>
         Next<HeldIntakeConversation>("startHeldIntakeConversation", ("productId", productId), ("reporter", reporter), ("request", request));
+
+    public Task<AttachmentUpload> RequestAttachmentUploadAsync(
+        string conversationId,
+        string uploaderId,
+        AttachmentUploadRequest file,
+        CancellationToken cancellationToken = default) =>
+        Next<AttachmentUpload>("requestAttachmentUpload", ("conversationId", conversationId), ("uploaderId", uploaderId), ("file", file));
 
     public Task<Attachment> UploadAttachmentAsync(
         string conversationId,

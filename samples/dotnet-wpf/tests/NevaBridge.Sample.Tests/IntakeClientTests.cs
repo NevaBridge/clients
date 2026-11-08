@@ -106,6 +106,31 @@ public sealed class IntakeClientTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task RequestAttachmentUpload_admits_the_file_for_the_uploader_and_returns_its_address()
+    {
+        // Given
+        _api.Respond(200, $$"""
+            {"attachmentId":"attachment-1","uploadUrl":"{{_api.BaseUrl}}upload/attachment-1?signature=abc",
+             "expiresAt":"2026-09-30T10:15:00Z"}
+            """);
+
+        // When
+        AttachmentUpload upload = await _client.RequestAttachmentUploadAsync(
+            ConversationId,
+            "CORP\\jdoe",
+            new AttachmentUploadRequest("app.log", 15));
+
+        // Then
+        Assert.Equal(
+            new AttachmentUpload("attachment-1", "app.log", new Uri(_api.BaseUrl, "upload/attachment-1?signature=abc"), DateTimeOffset.Parse("2026-09-30T10:15:00Z")),
+            upload);
+        RecordedRequest sent = Assert.Single(_api.Requests);
+        Assert.Equal($"/v1/conversations/{ConversationId}/actions/request-attachment-upload", sent.PathAndQuery);
+        Assert.Equal("CORP\\jdoe", sent.Headers["X-Actor-Id"]);
+        AssertSameJson("""{"fileName":"app.log","sizeBytes":15}""", sent.Body);
+    }
+
+    [Fact]
     public async Task UploadAttachment_puts_the_bytes_to_the_issued_address_and_confirms()
     {
         // Given

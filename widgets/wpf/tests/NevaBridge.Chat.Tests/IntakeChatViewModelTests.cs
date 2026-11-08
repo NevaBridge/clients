@@ -433,7 +433,7 @@ public sealed class IntakeChatViewModelTests
         PickedFile file = new("crash.log", 12, () => new MemoryStream(new byte[12]));
         Attachment attachment = new("attachment-1", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch);
         FakeIntakeConversations nevaBridge = Started().Answer("listAttachments", NoFiles)
-            .Answer("attachFile", attachment)
+            .Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", attachment)
             .Answer("deleteAttachment", new object());
         IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions { PickFile = () => Task.FromResult<PickedFile?>(file) });
         Assert.True(chat.OffersAttachments);
@@ -443,9 +443,12 @@ public sealed class IntakeChatViewModelTests
         chat.AttachCommand.Execute(null);
 
         // Then
-        RecordedCall attach = nevaBridge.Calls.Single(c => c.Operation == "attachFile");
+        RecordedCall admit = nevaBridge.Calls.Single(c => c.Operation == "requestAttachmentUpload");
+        Assert.Equal(ConversationId, admit.Arguments["conversationId"]);
+        Assert.Equal("jdoe", admit.Arguments["uploaderId"]);
+        Assert.Equal(new AttachmentUploadRequest("crash.log", 12), admit.Arguments["file"]);
+        RecordedCall attach = nevaBridge.Calls.Single(c => c.Operation == "uploadAttachment");
         Assert.Equal(ConversationId, attach.Arguments["conversationId"]);
-        Assert.Equal("jdoe", attach.Arguments["uploaderId"]);
         Assert.Same(file, attach.Arguments["file"]);
         AttachmentItem listed = Assert.Single(chat.Attachments);
         Assert.Equal("crash.log", listed.FileName);
@@ -465,7 +468,7 @@ public sealed class IntakeChatViewModelTests
         // Given
         PickedFile file = new("crash.log", 12, () => new MemoryStream(new byte[12]));
         FakeIntakeConversations nevaBridge = Started().Answer("listAttachments", NoFiles)
-            .Answer("attachFile", ApiError(403, "Forbidden"));
+            .Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", ApiError(403, "Forbidden"));
         IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions { PickFile = () => Task.FromResult<PickedFile?>(file) });
         Send(chat, "It crashes.");
 
@@ -491,7 +494,7 @@ public sealed class IntakeChatViewModelTests
         chat.AttachCommand.Execute(null);
 
         // Then
-        Assert.DoesNotContain("attachFile", nevaBridge.Operations);
+        Assert.DoesNotContain("uploadAttachment", nevaBridge.Operations);
         Assert.Null(chat.AttachmentNotice);
     }
 
@@ -516,7 +519,7 @@ public sealed class IntakeChatViewModelTests
         // Given
         PickedFile file = new("crash.log", 12, () => new MemoryStream(new byte[12]));
         TaskCompletionSource<Attachment> upload = new();
-        FakeIntakeConversations nevaBridge = Started().Answer("listAttachments", NoFiles).Answer("attachFile", upload.Task);
+        FakeIntakeConversations nevaBridge = Started().Answer("listAttachments", NoFiles).Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", upload.Task);
         IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions { PickFile = () => Task.FromResult<PickedFile?>(file) });
         Send(chat, "It crashes.");
         Task attaching = chat.AttachCommand.ExecuteAsync();
@@ -538,7 +541,7 @@ public sealed class IntakeChatViewModelTests
         PickedFile file = new("crash.log", 12, () => new MemoryStream(new byte[12]));
         TaskCompletionSource<object> removal = new();
         FakeIntakeConversations nevaBridge = Started().Answer("listAttachments", NoFiles)
-            .Answer("attachFile", new Attachment("attachment-1", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch))
+            .Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", new Attachment("attachment-1", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch))
             .Answer("deleteAttachment", removal.Task);
         IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions { PickFile = () => Task.FromResult<PickedFile?>(file) });
         Send(chat, "It crashes.");
@@ -587,7 +590,7 @@ public sealed class IntakeChatViewModelTests
         PickedFile file = new("crash.log", 12, () => new MemoryStream(new byte[12]));
         Attachment saved = new("attachment-1", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch);
         FakeIntakeConversations nevaBridge = Started().Answer("listAttachments", NoFiles)
-            .Answer("attachFile", new HttpRequestException("Connection reset"))
+            .Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", new HttpRequestException("Connection reset"))
             .Answer("listAttachments", (IReadOnlyList<Attachment>)[saved]);
         IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions { PickFile = () => Task.FromResult<PickedFile?>(file) });
         Send(chat, "It crashes.");
@@ -627,7 +630,7 @@ public sealed class IntakeChatViewModelTests
         // Given
         PickedFile file = new("crash.log", 12, () => new MemoryStream(new byte[12]));
         FakeIntakeConversations nevaBridge = Started().Answer("listAttachments", NoFiles)
-            .Answer("attachFile", new Attachment("attachment-1", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch))
+            .Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", new Attachment("attachment-1", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch))
             .Answer("startIntakeTurn", new IntakeTurnStarted(NextTurnId))
             .Answer("getIntakeTurnEvents", Events(Done(2)))
             .Answer("getConversation", Conversation(2, [("user", "It crashes."), ("assistant", "Thank you.")], status: "closed"))
@@ -708,12 +711,12 @@ public sealed class IntakeChatViewModelTests
         if (removing)
         {
             nevaBridge
-                .Answer("attachFile", new Attachment("attachment-1", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch))
+                .Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", new Attachment("attachment-1", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch))
                 .Answer("deleteAttachment", new HttpRequestException("Connection reset"));
         }
         else
         {
-            nevaBridge.Answer("attachFile", new HttpRequestException("Connection reset"));
+            nevaBridge.Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", new HttpRequestException("Connection reset"));
         }
 
         nevaBridge.Answer("listAttachments", listing.Task);
@@ -746,7 +749,7 @@ public sealed class IntakeChatViewModelTests
         PickedFile file = new("crash.log", 12, () => new MemoryStream(new byte[12]));
         Attachment saved = new("attachment-1", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch);
         FakeIntakeConversations nevaBridge = Started().Answer("listAttachments", NoFiles)
-            .Answer("attachFile", new HttpRequestException("Connection reset"))
+            .Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", new HttpRequestException("Connection reset"))
             .Answer("listAttachments", new HttpRequestException("Connection reset"))
             .Answer("listAttachments", (IReadOnlyList<Attachment>)[saved]);
         IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions { PickFile = () => Task.FromResult<PickedFile?>(file) });
@@ -778,7 +781,7 @@ public sealed class IntakeChatViewModelTests
             .Answer("startIntakeTurn", new IntakeTurnStarted(NextTurnId))
             .Answer("getIntakeTurnEvents", secondTurn.Task)
             .Answer("getConversation", Conversation(2, [("user", "It crashes."), ("assistant", "When?"), ("user", "On save."), ("assistant", "Thanks.")]))
-            .Answer("attachFile", upload.Task)
+            .Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", upload.Task)
             .Answer("listAttachments", (IReadOnlyList<Attachment>)[uploaded]);
         IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions { PickFile = () => Task.FromResult<PickedFile?>(file) });
         Send(chat, "It crashes.");
@@ -821,7 +824,7 @@ public sealed class IntakeChatViewModelTests
         // Then
         Assert.False(chat.AttachCommand.CanExecute(null));
         Assert.False(Assert.Single(chat.Attachments).RemoveCommand.CanExecute(null));
-        Assert.DoesNotContain("attachFile", nevaBridge.Operations);
+        Assert.DoesNotContain("uploadAttachment", nevaBridge.Operations);
         listing.SetResult([held]);
         await refreshing;
         Assert.True(chat.AttachCommand.CanExecute(null));
@@ -851,7 +854,7 @@ public sealed class IntakeChatViewModelTests
         PickedFile file = new("crash.log", 12, () => new MemoryStream(new byte[12]));
         FakeIntakeConversations nevaBridge = Started()
             .Answer("listAttachments", new HttpRequestException("Connection reset"))
-            .Answer("attachFile", new Attachment("attachment-2", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch));
+            .Answer("requestAttachmentUpload", Admission()).Answer("uploadAttachment", new Attachment("attachment-2", "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch));
         bool cancelled = true;
         IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions
         {

@@ -123,6 +123,17 @@ public sealed class NevaBridgeClient :
         return SendAsync<HeldIntakeConversation>(message, cancellationToken);
     }
 
+    public async Task<AttachmentUpload> RequestAttachmentUploadAsync(
+        string conversationId,
+        string uploaderId,
+        AttachmentUploadRequest file,
+        CancellationToken cancellationToken = default)
+    {
+        UploadTicket ticket = await SendAsync<UploadTicket>(AdmitRequest(conversationId, uploaderId, file), cancellationToken)
+            .ConfigureAwait(false);
+        return new AttachmentUpload(ticket.AttachmentId, file.FileName, ticket.UploadUrl, ticket.ExpiresAt);
+    }
+
     public async Task<Attachment> UploadAttachmentAsync(
         string conversationId,
         AttachmentUpload upload,
@@ -351,21 +362,26 @@ public sealed class NevaBridgeClient :
         PickedFile file,
         CancellationToken cancellationToken)
     {
-        string conversationPath = $"v1/conversations/{Uri.EscapeDataString(conversationId)}";
-
         // 1. Admit the file: NevaBridge checks its type and size and returns a one-time upload address.
-        HttpRequestMessage admit = CreateRequest(
-            HttpMethod.Post,
-            conversationPath + "/actions/request-attachment-upload",
-            new UploadRequest(file.Name, file.SizeBytes));
-        admit.Headers.Add("X-Actor-Id", uploaderId);
-        UploadTicket ticket = await SendAsync<UploadTicket>(admit, cancellationToken).ConfigureAwait(false);
+        UploadTicket ticket = await SendAsync<UploadTicket>(
+            AdmitRequest(conversationId, uploaderId, new AttachmentUploadRequest(file.Name, file.SizeBytes)),
+            cancellationToken).ConfigureAwait(false);
 
         // 2. Upload the bytes straight to storage.
         await PutAsync(ticket.UploadUrl, file, cancellationToken).ConfigureAwait(false);
 
         // 3. Confirm, which attaches the file to the conversation.
         return ConfirmRequest(conversationId, ticket.AttachmentId);
+    }
+
+    private HttpRequestMessage AdmitRequest(string conversationId, string uploaderId, AttachmentUploadRequest file)
+    {
+        HttpRequestMessage admit = CreateRequest(
+            HttpMethod.Post,
+            $"v1/conversations/{Uri.EscapeDataString(conversationId)}/actions/request-attachment-upload",
+            file);
+        admit.Headers.Add("X-Actor-Id", uploaderId);
+        return admit;
     }
 
     /// <summary>Uploads the bytes to a presigned address, which gets no API key.</summary>
@@ -445,8 +461,6 @@ public sealed class NevaBridgeClient :
                 ?? throw new JsonException($"NevaBridge answered HTTP {(int)response.StatusCode} with an empty body.");
         }
     }
-
-    private sealed record UploadRequest(string FileName, long SizeBytes);
 
     private sealed record UploadTicket(string AttachmentId, Uri UploadUrl, DateTimeOffset ExpiresAt);
 

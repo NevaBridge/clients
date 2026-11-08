@@ -240,7 +240,7 @@ noted; the chat then lists what was passed on to the team.
 Files can be attached before the first message, as in the NevaBridge web app. The first file starts
 the conversation without a message (`StartHeldIntakeConversationAsync`) and uploads at once to the
 address NevaBridge returns (`UploadAttachmentAsync`); the first message then waits for uploads still
-running, so the reply sees the files. A file storage refuses stays listed with Retry and
+running, so the reply sees the files. A file that does not upload stays listed with Retry and
 Dismiss and does not hold up the reply. Finish is offered once the first reply has arrived.
 
 The chat recovers from a lost answer the way the web chat does: a turn already running is

@@ -189,7 +189,8 @@ agent should also read the repository's [`AGENTS.md`](../../AGENTS.md#maintainin
    changed.
 2. Implement `INevaBridgeIntakeConversations` in your API client. Copy these methods from
    `src/NevaBridge.Sample.Client/NevaBridgeClient.cs`: `StartIntakeConversationAsync`,
-   `StartHeldIntakeConversationAsync`, `UploadAttachmentAsync`, `StartIntakeTurnAsync`,
+   `StartHeldIntakeConversationAsync`, `RequestAttachmentUploadAsync`, `UploadAttachmentAsync`,
+   `StartIntakeTurnAsync`,
    `GetIntakeTurnEventsAsync` and `DeleteAttachmentAsync`, with their request builders, and the
    `conversationId` line in `ApiErrors.cs`. `GetConversationAsync`, `GetFeaturesAsync` and `AttachFileAsync` already exist
    in a client built from this example and serve both interfaces. If your client calls your own
@@ -199,6 +200,7 @@ agent should also read the repository's [`AGENTS.md`](../../AGENTS.md#maintainin
    | ------------------------------ | --------------------------------------------------------------------------------- |
    | `StartIntakeConversationAsync` | `POST /v1/products/{productId}/intake-conversations` with the `X-Actor-*` headers |
    | `StartHeldIntakeConversationAsync` | `POST /v1/products/{productId}/intake-conversations` with `attachments` and the `X-Actor-*` headers |
+   | `RequestAttachmentUploadAsync` | `POST /v1/conversations/{conversationId}/actions/request-attachment-upload` with `X-Actor-Id` |
    | `UploadAttachmentAsync`        | `PUT` to the returned `uploadUrl`, then `POST /v1/conversations/{conversationId}/actions/confirm-attachment-upload` |
    | `StartIntakeTurnAsync`         | `POST /v1/intake-conversations/{conversationId}/turns`                            |
    | `GetIntakeTurnEventsAsync`     | `GET /v1/intake-turns/{turnId}/events?after={cursor}&wait=20`                     |

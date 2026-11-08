@@ -49,13 +49,12 @@ against all of them at once.
     its first turn fails, and files attached to it would go with it. A file that did not upload
     stays listed as not uploaded with Retry and Dismiss and never holds up a reply. Because
     NevaBridge attaches arrived bytes even unconfirmed, and a listing omits them while their
-    address is live, the chat never forgets an upload whose outcome is open: the first file keeps
-    its admission, and only deleting that admission on NevaBridge lets go of it. Dismiss deletes
-    it; Retry deletes it before uploading a new copy, so at most one copy is ever attached; when
-    deleting fails, the file stays as it was. A listing that shows the admission drops the row. A
-    later file, uploaded through `AttachFileAsync`, gets Retry and Dismiss only when storage
-    refused it outright; when the outcome is open (no answer, or 412 because storage already holds
-    it) it is settled by listing (rule 12).
+    address is live, the chat never forgets an upload whose outcome is open: every file is
+    admitted first (the first one by the start, later ones with `RequestAttachmentUploadAsync`)
+    and keeps its admission when its upload fails, and only deleting that admission on NevaBridge
+    lets go of it. Dismiss deletes it; Retry deletes it before admitting a new copy, so at most one
+    copy is ever attached; when deleting fails, the file stays as it was. A listing that shows the
+    admission drops the row.
 11. One attachment operation runs at a time: attach, remove and listing share one lock
     (`_isAttaching`). A conversation read that comes while an upload, removal or listing runs
     queues its listing until that operation has ended, and attach and remove are refused while a
@@ -131,12 +130,13 @@ attaches arrived bytes even unconfirmed, and a listing omits them while the uplo
 and settles them only some time after it expired. Three reviewed designs failed on this:
 treating every failed upload as absent (Retry then attached a second copy), settling by an
 immediate listing (which cannot see a live admission), and reusing the admission until its address
-expired (expiry alone does not settle it). Each patched one path of the same open outcome.
+expired (expiry alone does not settle it). A fourth review found that later files, uploaded through
+`AttachFileAsync`, still lost their admission. Each patched one path of the same open outcome.
 
 The design removes the open outcome instead of reasoning about when it closes. Invariants:
 
-- A. Every first-file upload the chat started is either listed as uploaded, or held by a failed row
-  that keeps its admission. No path drops an admission without deleting it on NevaBridge.
+- A. Every upload the chat started is either listed as uploaded, or held by a failed row that keeps
+  its admission. No path drops an admission without deleting it on NevaBridge.
 - B. Only deleting the admission lets go of it: Dismiss deletes it, and Retry deletes it before a
   new upload, so at most one copy is ever attached. A failed deletion keeps the row unchanged.
 - C. Deleting succeeds whether the bytes arrived, were confirmed, or never came, so no state of the
@@ -144,11 +144,9 @@ The design removes the open outcome instead of reasoning about when it closes. I
 - D. A listing that shows the admission's id drops the failed row; otherwise listings keep it.
 - E. All of this runs under the one attachment lock (rule 11), and Send waits for it (rule 1).
 
-A later file goes through `AttachFileAsync`, whose admission the chat never sees, so it cannot keep
-one: it gets Retry and Dismiss only when storage refused it outright, which leaves nothing to
-attach, and an open outcome is left to listing as before this change. Moving later files onto
-admissions too would make them follow A to E; it is not needed for attaching before the first
-message and would change every host's client.
+Every file follows A to E: the first is admitted by the start, later ones and replacements by
+`RequestAttachmentUploadAsync`. The chat never calls `AttachFileAsync`, which hides its admission. A
+failed admission keeps nothing, because no bytes were sent to it.
 
 The turn rules (1 to 9) mirror the NevaBridge web chat page, which recovers from the same lost
 answers the same way. The voice rules (16 to 23) follow the NevaBridge web app's voice, so the two
