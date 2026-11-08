@@ -146,7 +146,8 @@ The design removes the open outcome instead of reasoning about when it closes. I
 
 Every file follows A to E: the first is admitted by the start, later ones and replacements by
 `RequestAttachmentUploadAsync`. The chat never calls `AttachFileAsync`, which hides its admission. A
-failed admission keeps nothing, because no bytes were sent to it.
+file whose admission fails stays listed without one: no bytes were sent, so nothing can attach
+later, Retry admits it afresh and Dismiss only drops the row.
 
 The turn rules (1 to 9) mirror the NevaBridge web chat page, which recovers from the same lost
 answers the same way. The voice rules (16 to 23) follow the NevaBridge web app's voice, so the two

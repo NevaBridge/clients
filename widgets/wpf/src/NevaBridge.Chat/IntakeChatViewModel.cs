@@ -796,8 +796,9 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// Admits a file to an existing conversation, then uploads to that admission. A failed admission
-    /// leaves nothing to keep: no bytes were sent to it, so it can never attach a file.
+    /// Admits a file to an existing conversation, then uploads to that admission. When admitting
+    /// fails, the file stays listed without an admission: no bytes were sent, so nothing can attach
+    /// later, Retry admits it afresh and Dismiss only drops the row.
     /// </summary>
     private async Task AdmitAndUploadAsync(string conversationId, PickedFile file, AttachmentItem row)
     {
@@ -812,7 +813,15 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         }
         catch (Exception error) when (error is not OperationCanceledException || !_closing.IsCancellationRequested)
         {
-            Attachments.Remove(row);
+            if (IsForbidden(error))
+            {
+                Attachments.Remove(row);
+            }
+            else
+            {
+                Replace(row, Failed(file, admission: null));
+            }
+
             await ShowAttachmentFailureAsync(conversationId, error);
             return;
         }
