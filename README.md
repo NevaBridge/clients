@@ -8,9 +8,16 @@ Official client libraries for the [NevaBridge](https://nevabridge.com) Tenant In
 | [`NevaBridge.Wpf`](widgets/wpf)            | C# / .NET 8+ WPF on Windows | Pre-release |
 | [`@nevabridge/electron`](widgets/electron) | TypeScript / Electron 32+   | Pre-release |
 
-The API lets your backend run a NevaBridge reporting conversation. It can start a conversation,
-list conversations, read one, append a turn, attach files, and submit the report. See
-[`sdk/typescript/README.md`](sdk/typescript/README.md) for usage.
+The API lets your application run NevaBridge conversations. In **Generic Intake**, the
+recommended conversation, an assistant works out what the user needs, answers questions and files
+one or more reports; each reply runs in the background and the client polls it. Files can be
+attached, and users can dictate or talk with the assistant hands-free. The older **classic chat**,
+where the user first picks a report type and files one report, stays supported. See
+[`sdk/typescript/README.md`](sdk/typescript/README.md) for the TypeScript SDK and
+[`widgets/wpf/README.md`](widgets/wpf/README.md) for WPF.
+
+What changed is in the [changelog](CHANGELOG.md). If you point a coding agent at this repository
+to upgrade your own integration, it finds its instructions in [`AGENTS.md`](AGENTS.md).
 
 ## Get an API key
 
@@ -28,14 +35,15 @@ at `https://tenant.api.nevabridge.com`, and the sandbox is at
 
 ## Samples
 
-For a WPF application, start with the [integration guide](widgets/wpf/README.md). It covers native
-controls, the NevaBridge-hosted web chat, and a bundled or self-hosted page, with settings in your
-database. Build the components from this repository; no published NevaBridge NuGet package is
-required. The sample guide below also supports trying the chat without a database.
+For a WPF application, start with the [integration guide](widgets/wpf/README.md). It explains the
+Generic Intake chat, attachments, voice and feature switches, then covers native controls, the
+NevaBridge-hosted web chat, and a bundled or self-hosted page, with settings in your database.
+Build the components from this repository; no published NevaBridge NuGet package is required. The
+[WPF example](samples/dotnet-wpf) runs every chat side by side and also works without a database.
 
 | Sample                                                 | Shows                                                                                                                                                |
 | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`samples/dotnet-wpf`](samples/dotnet-wpf)             | A WPF application with the NevaBridge chat as a native control and as the NevaBridge web chat in WebView2, built on [`NevaBridge.Wpf`](widgets/wpf). |
+| [`samples/dotnet-wpf`](samples/dotnet-wpf)             | A WPF application with the native Generic Intake chat (attachments, dictation, hands-free voice), the classic native chat and the NevaBridge web chat in WebView2, each behind a feature switch, built on [`NevaBridge.Wpf`](widgets/wpf). |
 | [`samples/electron-desktop`](samples/electron-desktop) | An Electron application with the NevaBridge web chat, built on [`@nevabridge/electron`](widgets/electron).                                           |
 
 ## How these clients are built

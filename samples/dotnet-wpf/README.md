@@ -16,6 +16,12 @@ The example is a stand-in business app ("Contoso Billing") with one entry per ch
 Each chat, attachments, dictation and the hands-free conversation can be switched on and off in a
 [features file](#features-file).
 
+The example shows all three chats so you can compare them. For your own application we recommend
+offering only the **Support assistant** (Generic Intake) and hiding the classic chat; keep it behind
+a switch such as `classicChat` if you want to turn it back on in an emergency. The
+[integration guide](../../widgets/wpf/README.md#what-the-package-offers) explains why, how the chat
+polls each reply, and when to use configuration switches or fix the features in code.
+
 For your own application, follow the [WPF integration guide](../../widgets/wpf/README.md). It
 shows how to build the components into your app and use database settings for three options:
 native WPF, NevaBridge-hosted web chat, and a bundled or self-hosted copy. No published NevaBridge
@@ -138,6 +144,15 @@ NevaBridge feature gate: `genericIntake` for the Generic Intake chat, `chatAttac
 attachments, `voiceDictation` for dictation and `voiceConversation` for the hands-free
 conversation. The file holds no secrets.
 
+The file is one way to decide what your application offers, useful when installations should
+differ or when you want to switch a feature off without a new release. If every installation
+should look the same, you can instead fix the choice in code and leave the file out; keep the
+tenant's feature gates either way. To offer only Generic Intake, set `classicChat` to `false`.
+
+While the assistant works, the Support assistant shows its status as a line of text, such as
+"Searching the knowledge base". The reply arrives in steps as the chat polls NevaBridge. In your
+own UI, animate that waiting state so the user sees the chat is busy.
+
 ## Where to look
 
 Everything you do in your own application is in one file per step, in
@@ -164,7 +179,9 @@ and the security model.
 ## Adding Generic Intake to your own native chat
 
 Written for a developer, or a coding agent, upgrading a native WPF chat built from an earlier
-version of this example. The classic chat keeps working; Generic Intake is added next to it.
+version of this example. The classic chat keeps working; Generic Intake is added next to it. Once
+Generic Intake works, hide the classic chat entry (or put it behind a switch that is off). A coding
+agent should also read the repository's [`AGENTS.md`](../../AGENTS.md#maintaining-your-own-application-built-on-this-example).
 
 1. Update your copy of `widgets/wpf` (the `NevaBridge.Chat` and `NevaBridge.Wpf` projects) to this
    revision. Nothing in `INevaBridgeConversations`, `ChatViewModel` or `NevaBridgeChatControl`

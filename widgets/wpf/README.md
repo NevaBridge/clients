@@ -5,6 +5,69 @@ and product id from its database and makes the API calls. The web page never rec
 Build the components from this repository; a published NuGet package is not required.
 
 To try the demo without a database, follow the [WPF sample guide](../../samples/dotnet-wpf/README.md).
+The [changelog](CHANGELOG.md) lists what changed between revisions.
+
+## What the package offers
+
+### Two kinds of conversation: use Generic Intake
+
+The package runs two kinds of conversation:
+
+- **Generic Intake** (`NevaBridgeIntakeChatControl`, and the hosted web chat when the tenant has
+  Generic Intake): the assistant works out what the reporter needs, answers questions, and one
+  conversation can file several reports. It supports file attachments, dictation and a hands-free
+  voice conversation.
+- **The classic chat** (`NevaBridgeChatControl`): the reporter first picks a report type (bug
+  report, feature request or support request), and one conversation files one report. It has no
+  attachments and no voice.
+
+We recommend Generic Intake for every new integration and for upgrading an existing one. Hide the
+classic chat UI from your users rather than offering both. If you want a way back in an
+emergency, keep the classic chat behind a feature toggle that is off by default, as the sample's
+`classicChat` switch does, so you can turn it on again without a new release. The classic chat
+stays supported; it receives no new features.
+
+### Generic Intake is designed around polling
+
+Each message starts a turn that runs in the background on NevaBridge. The chat does not hold one
+request open for the whole reply: it starts the turn, then asks for the turn's events again and
+again (`getIntakeTurnEvents`, each call waiting up to 20 seconds for something new). The events
+say what the assistant is doing (for example reading attachments or searching knowledge) and
+carry the reply as it is written. When the turn is done, the chat reads the saved conversation.
+
+A reply therefore takes a few seconds to start and then grows in steps, as each poll returns,
+rather than as a continuous stream. Build your UI so the user always sees that something is
+happening: animate the waiting state (a typing indicator, a pulsing status line or a progress
+animation) and show the assistant's current status next to it. The native control shows the
+status as text; adding an animation around it is a good place to match your application's look.
+Losing a poll answer is harmless: the chat asks again from where it left off, and a turn already
+running is followed rather than started twice.
+
+### Attachments and voice
+
+- **Attachments:** the reporter attaches files, sees them listed and removes them. NevaBridge
+  reads them while it answers; images get a description first. Requires the tenant feature
+  `chatAttachments`. In the native Generic Intake chat, files can be attached once the first
+  reply has been saved.
+- **Dictation:** Dictate types what the reporter says into the message box. Requires
+  `voiceDictation`.
+- **Hands-free conversation:** Talk sends what the reporter said after a pause, reads the reply
+  aloud and listens again. Requires `voiceConversation`.
+
+### Turning features on and off: configuration or code
+
+A feature appears only when two things allow it: your application decides to offer it, and the
+tenant's NevaBridge feature gate allows it (read with `GetFeaturesAsync`). Always check the
+tenant's gates; they reflect what the tenant's plan includes.
+
+For your own decision, choose what fits your release process:
+
+- **Feature switches in configuration**, as the sample does with its
+  [features file](../../samples/dotnet-wpf/README.md#features-file): you can switch each chat,
+  attachments, dictation and the hands-free conversation on or off per installation without a
+  rebuild. This also gives you the emergency switch back to the classic chat described above.
+- **Fixed in code**: decide once which features your UI offers and leave out the switches. This is
+  simpler when every installation should look the same.
 
 ## Choose an integration
 
@@ -107,7 +170,9 @@ which knowledge audiences the assistant may use.
 ## 1. Native WPF chat
 
 Use this when you want the chat to follow your application's appearance and release schedule.
-Leave `WebChatUrl` as `NULL` and complete the common setup above.
+Leave `WebChatUrl` as `NULL` and complete the common setup above. For a new integration, go
+straight to the [native Generic Intake chat](#native-generic-intake-chat); the steps directly
+below add the classic chat.
 
 1. Add the control to your window:
 
@@ -264,8 +329,8 @@ changed database URL.
 The bridge speaks version 1 of the webview chat bridge protocol, pinned in this repository under
 `contracts/webview-chat-protocol/`, and passes every conformance case there. That includes the Generic
 Intake requests: when your tenant has Generic Intake, the hosted page runs a Generic Intake
-conversation through the bridge, polling each turn. The bundled copy and the native chat still run
-the classic chat.
+conversation through the bridge, polling each turn. It also answers `deleteAttachment`, so the
+page can remove an attached file. The bundled copy runs the classic chat.
 
 ## 3. Bundle or host your own copy
 
