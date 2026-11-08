@@ -47,8 +47,8 @@ running is followed rather than started twice.
 
 - **Attachments:** the reporter attaches files, sees them listed and removes them. NevaBridge
   reads them while it answers; images get a description first. Requires the tenant feature
-  `chatAttachments`. In the native Generic Intake chat, files can be attached once the first
-  reply has been saved.
+  `chatAttachments`. In the native Generic Intake chat, files can be attached before the first
+  message too.
 - **Dictation:** Dictate types what the reporter says into the message box. Requires
   `voiceDictation`.
 - **Hands-free conversation:** Talk sends what the reporter said after a pause, reads the reply

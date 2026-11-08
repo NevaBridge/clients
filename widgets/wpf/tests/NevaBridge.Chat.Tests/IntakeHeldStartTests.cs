@@ -367,6 +367,54 @@ public sealed class IntakeHeldStartTests
     }
 
     [Fact]
+    public void A_file_that_did_not_upload_can_be_dismissed_after_the_conversation_ended()
+    {
+        // Given: NevaBridge refuses any change to the files of a closed conversation
+        FakeIntakeConversations nevaBridge = new FakeIntakeConversations()
+            .Answer("startHeldIntakeConversation", Held("crash.log"))
+            .Answer("uploadAttachment", new HttpRequestException("connection reset"))
+            .Answer("listAttachments", (IReadOnlyList<Attachment>)[])
+            .Answer("startIntakeTurn", new IntakeTurnStarted(TurnId))
+            .Answer("getIntakeTurnEvents", Events(Done(1)))
+            .Answer("getConversation", Conversation(1, [("user", "It crashes."), ("assistant", "Noted.")], status: "closed"))
+            .Answer("listAttachments", (IReadOnlyList<Attachment>)[]);
+        IntakeChatViewModel chat = Chat(nevaBridge, Log);
+        chat.AttachCommand.Execute(null);
+        Send(chat, "It crashes.");
+        Assert.True(chat.IsEnded);
+
+        // When
+        AttachmentItem failed = Assert.Single(chat.Attachments);
+        Assert.True(failed.DismissCommand.CanExecute(null));
+        failed.DismissCommand.Execute(null);
+
+        // Then
+        Assert.Empty(chat.Attachments);
+        Assert.DoesNotContain("deleteAttachment", nevaBridge.Operations);
+    }
+
+    [Fact]
+    public void Dismissing_a_file_whose_admission_failed_deletes_nothing()
+    {
+        // Given
+        FakeIntakeConversations nevaBridge = new FakeIntakeConversations()
+            .Answer("startHeldIntakeConversation", Held("crash.log"))
+            .Answer("uploadAttachment", LogAttached)
+            .Answer("requestAttachmentUpload", new HttpRequestException("offline"))
+            .Answer("listAttachments", (IReadOnlyList<Attachment>)[LogAttached]);
+        IntakeChatViewModel chat = Chat(nevaBridge, Log, Screenshot);
+        chat.AttachCommand.Execute(null);
+        chat.AttachCommand.Execute(null);
+
+        // When
+        chat.Attachments[1].DismissCommand.Execute(null);
+
+        // Then
+        Assert.Equal(LogAttached, Assert.Single(chat.Attachments).Attachment);
+        Assert.DoesNotContain("deleteAttachment", nevaBridge.Operations);
+    }
+
+    [Fact]
     public void Dismissing_a_first_file_that_did_not_upload_deletes_its_admission()
     {
         // Given

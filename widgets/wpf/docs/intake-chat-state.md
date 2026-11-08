@@ -144,7 +144,8 @@ The design removes the open outcome instead of reasoning about when it closes. I
 - D. A listing that shows the admission's id drops the failed row; otherwise listings keep it.
 - E. All of this runs under the one attachment lock (rule 11), and Send waits for it (rule 1).
 - F. A picked file leaves the list only by uploading, by Dismiss, or by a 403 that switches
-  attachments off. A failed admission keeps it as a failed row without an admission, which needs
+  attachments off. Once the conversation has ended NevaBridge takes no change to its files, so
+  Dismiss there only drops the row. A failed admission keeps it as a failed row without an admission, which needs
   no deletion because no bytes went to it.
 
 After moving every file onto admissions, a fifth review confirmed A to E for all files and found

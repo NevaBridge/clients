@@ -650,10 +650,13 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         });
     }
 
-    /// <summary>Deletes a failed file's admission on NevaBridge, so bytes that did arrive cannot attach it later.</summary>
+    /// <summary>
+    /// Deletes a failed file's admission on NevaBridge, so bytes that did arrive cannot attach it
+    /// later. A closed conversation takes no change to its files, so there the row only goes.
+    /// </summary>
     private Task DismissAsync(AttachmentItem failed, AttachmentUpload? admission)
     {
-        if (admission is null || _conversationId is not { } conversationId)
+        if (admission is null || IsEnded || _conversationId is not { } conversationId)
         {
             Attachments.Remove(failed);
             AttachmentNotice = null;
