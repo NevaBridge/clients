@@ -1,0 +1,26 @@
+{
+  "name": "delete-attachment-unknown-conversation",
+  "description": "The page asks to remove a file of a conversation it did not start. The host makes no API call.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": [],
+  "request": {
+    "id": "r8",
+    "type": "deleteAttachment",
+    "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+    "attachmentId": "attachment-0f1e2d3c-4b5a-4968-8776-655443322110"
+  },
+  "apiCalls": [],
+  "response": {
+    "id": "r8",
+    "ok": false,
+    "error": {
+      "name": "UnknownConversation",
+      "message": "This conversation was not started in this chat.",
+      "status": null,
+      "retryable": false
+    }
+  }
+}

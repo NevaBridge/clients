@@ -111,6 +111,8 @@ export interface NevaBridgeConversations {
   /** Reads a turn's events after the cursor `after`, or from its first event. */
   getIntakeTurnEvents(turnId: string, after?: string): Promise<JsonValue>;
   getConversation(conversationId: string): Promise<JsonValue>;
+  /** Removes one file from an open conversation. Removing a file that is gone succeeds. */
+  deleteAttachment(conversationId: string, attachmentId: string): Promise<void>;
 }
 
 /**
@@ -237,5 +239,8 @@ export function createSdkConversations(
 
     getConversation: (conversationId) =>
       client.json.getConversation({conversationId}),
+
+    deleteAttachment: (conversationId, attachmentId) =>
+      client.deleteAttachment({conversationId, attachmentId}),
   };
 }

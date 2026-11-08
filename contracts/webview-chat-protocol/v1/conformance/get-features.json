@@ -21,7 +21,9 @@
         "body": {
           "chatAttachments": true,
           "knowledgebase": false,
-          "genericIntake": false
+          "genericIntake": false,
+          "voiceDictation": true,
+          "voiceConversation": false
         }
       }
     }
@@ -32,7 +34,9 @@
     "result": {
       "chatAttachments": true,
       "knowledgebase": false,
-      "genericIntake": false
+      "genericIntake": false,
+      "voiceDictation": true,
+      "voiceConversation": false
     }
   }
 }

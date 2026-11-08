@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "webview-chat bridge protocol, version 1",
-  "description": "Every message between the webview-chat page and its host is a JSON string. The page sends a Request; the host answers each Request with exactly one Response carrying the same id. Results use the NevaBridge tenant integration API's own JSON shapes, named in x-result-schema (components of api/openapi/nevabridge-v1.yaml). Request types marked x-optional were added within major 1; a host that predates them answers UnsupportedRequest.",
+  "description": "Every message between the webview-chat page and its host is a JSON string. The page sends a Request; the host answers each Request with exactly one Response carrying the same id. Results use the NevaBridge tenant integration API's own JSON shapes, named in x-result-schema (components of api/openapi/nevabridge-v1.yaml); a request marked x-empty-result has an API answer without a body, and its result is the empty object. Request types marked x-optional were added within major 1; a host that predates them answers UnsupportedRequest.",
   "$defs": {
     "RequestId": {
       "type": "string",
@@ -19,6 +19,10 @@
     "TurnId": {
       "type": "string",
       "pattern": "^intaketurn-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
+    "AttachmentId": {
+      "type": "string",
+      "pattern": "^attachment-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
     "MessageText": {
       "type": "string",
@@ -212,6 +216,28 @@
       "x-api-operation": "getConversation",
       "x-result-schema": "ConversationDetail"
     },
+    "DeleteAttachmentRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "deleteAttachment"
+        },
+        "conversationId": {
+          "$ref": "#/$defs/ConversationId"
+        },
+        "attachmentId": {
+          "$ref": "#/$defs/AttachmentId"
+        }
+      },
+      "required": ["id", "type", "conversationId", "attachmentId"],
+      "additionalProperties": false,
+      "x-optional": true,
+      "x-api-operation": "deleteAttachment",
+      "x-empty-result": true
+    },
     "Request": {
       "oneOf": [
         {
@@ -240,6 +266,9 @@
         },
         {
           "$ref": "#/$defs/GetConversationRequest"
+        },
+        {
+          "$ref": "#/$defs/DeleteAttachmentRequest"
         }
       ]
     },

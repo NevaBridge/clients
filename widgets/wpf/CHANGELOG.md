@@ -8,6 +8,10 @@ classic chat, which is unchanged.
 
 ### Added
 
+- The optional web chat request `deleteAttachment` in `WebChatBridge`, which removes a file the
+  page attached, for a conversation the page started; the hosted page offers removal once a host
+  answers it. `INevaBridgeWebChatApi` gains `DeleteAttachmentAsync`, which the sample's
+  `NevaBridgeClient` already has; an implementation of your own needs it too.
 - Dictation and a hands-free conversation in the native Generic Intake chat, offered through
   `IntakeChatOptions.Voice` (`IntakeChatVoice`) and run by `IntakeChatViewModel.Voice`. Dictate
   types what the reporter says into the message box; Talk sends after a pause, reads the reply

@@ -484,6 +484,23 @@ public sealed class WebChatBridgeTests
         Assert.True(Ok(response));
     }
 
+    [Fact]
+    public async Task A_file_removal_without_an_attachment_id_is_refused_without_an_API_call()
+    {
+        // Given
+        WebChatBridge bridge = CreateBridge();
+        await StartIntakeAsync(bridge);
+
+        // When
+        string? response = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":2,"type":"deleteAttachment","conversationId":"{{ConversationId}}"}""");
+
+        // Then
+        Assert.Equal("UnsupportedRequest", ErrorName(response));
+        Assert.DoesNotContain(_nevaBridge.Calls, call => call.Operation == "deleteAttachment");
+    }
+
     [Theory]
     [InlineData(""" "expectedRevision":-1 """)]
     [InlineData(""" "expectedRevision":1.5 """)]

@@ -76,6 +76,15 @@ and the page reads its events with one `getIntakeTurnEvents` request per poll:
 `startIntakeTurn` sends `text` as the API's `content`, with `expectedRevision` and `finish`
 unchanged. `getIntakeTurnEvents` sends `after` unchanged when the page gives one.
 
+Optional request type, for removing an attached file:
+
+| `type`             | Fields                           | Result                 | API calls          |
+| ------------------ | -------------------------------- | ---------------------- | ------------------ |
+| `deleteAttachment` | `conversationId`, `attachmentId` | `{}` (the API's `204`) | `deleteAttachment` |
+
+`deleteAttachment` sends `{"attachmentId": ...}` as the body. The API answers `204` without a body,
+also for a file that is already gone, and the result is the empty object.
+
 The host answers every request with exactly one **response** carrying the same `id`:
 
 ```json
@@ -83,7 +92,8 @@ The host answers every request with exactly one **response** carrying the same `
 {"id": "r1", "ok": false, "error": {"name": "Forbidden", "message": "...", "status": 403, "retryable": false}}
 ```
 
-A result is the API's JSON for the operation, unchanged. The schema names are components of
+A result is the API's JSON for the operation, unchanged, or the empty object where the API answers
+without a body. The schema names are components of
 `api/openapi/nevabridge-v1.yaml`. The page ignores fields it does not know, and so must the host.
 
 ### What the host supplies
@@ -100,8 +110,8 @@ The page cannot set the product, the reporter or the application context. The ho
 
 - Serve the page over https only, except plain http on a loopback address during development.
 - Accept messages only from the page's own origin, and ignore any other.
-- Accept `appendMessage`, `submitReport`, `attachFile`, `startIntakeTurn` and `getConversation`
-  only for a conversation the page started in this session (the `conversationId` of a
+- Accept `appendMessage`, `submitReport`, `attachFile`, `startIntakeTurn`, `getConversation` and
+  `deleteAttachment` only for a conversation the page started in this session (the `conversationId` of a
   `startConversation` or `startIntakeConversation` result). Answer anything else with
   `UnknownConversation` and make no API call.
 - Accept `getIntakeTurnEvents` only for a turn the host returned in this session: the `turnId` of a
@@ -147,7 +157,7 @@ therefore answer within those times, and must not assume a late result reached t
 ## Feature gates
 
 The page shows a gated control only when its feature is on in the `getFeatures` result:
-`chatAttachments` shows the attach control. Staff can revoke a feature while a chat is open, so the
+`chatAttachments` shows the attach control and the remove control of each attached file. Staff can revoke a feature while a chat is open, so the
 page also treats a `Forbidden` answer to a gated request as the feature being off: it hides the
 control and says so. The page ignores feature keys it does not know.
 

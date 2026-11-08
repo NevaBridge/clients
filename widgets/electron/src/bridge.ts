@@ -312,6 +312,18 @@ export function createWebChatBridge(
         rememberTurn(stringField(detail, "activeTurnId"));
         return success(detail);
       }
+      case "deleteAttachment": {
+        const conversationId = startedConversation(request);
+        if (conversationId === null) {
+          return unknownConversation();
+        }
+        await options.conversations.deleteAttachment(
+          conversationId,
+          requiredString(request, "attachmentId"),
+        );
+        // The API answers 204 without a body; the protocol's result for it is the empty object.
+        return success({});
+      }
       default:
         throw new UnsupportedRequest("This request type is not supported.");
     }

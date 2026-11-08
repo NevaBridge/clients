@@ -147,6 +147,7 @@ public sealed class WebChatBridge
             "startIntakeTurn" => StartTurnAsync(id, request, cancellationToken),
             "getIntakeTurnEvents" => GetTurnEventsAsync(id, request, cancellationToken),
             "getConversation" => GetConversationAsync(id, request, cancellationToken),
+            "deleteAttachment" => DeleteAttachmentAsync(id, request, cancellationToken),
             _ => throw new UnsupportedRequestException("This request type is not supported."),
         };
 
@@ -323,6 +324,20 @@ public sealed class WebChatBridge
         JsonElement detail = await _api.GetConversationAsync(conversationId, cancellationToken).ConfigureAwait(false);
         Remember(_startedTurns, ReadString(detail, "activeTurnId"));
         return Success(id, detail);
+    }
+
+    private async Task<string> DeleteAttachmentAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
+    {
+        if (ReadStartedConversation(request) is not { } conversationId)
+        {
+            return UnknownConversation(id);
+        }
+
+        await _api.DeleteAttachmentAsync(conversationId, ReadRequiredString(request, "attachmentId"), cancellationToken)
+            .ConfigureAwait(false);
+
+        // The API answers 204 without a body; the protocol's result for it is the empty object.
+        return Success(id, new JsonObject());
     }
 
     private string ApiFailure(JsonValue id, NevaBridgeApiException error)

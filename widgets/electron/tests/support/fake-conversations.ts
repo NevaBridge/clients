@@ -121,6 +121,13 @@ export class FakeConversations implements NevaBridgeConversations {
     };
   }
 
+  public async deleteAttachment(
+    conversationId: string,
+    attachmentId: string,
+  ): Promise<void> {
+    this.record("deleteAttachment", {conversationId, attachmentId});
+  }
+
   private record(operation: string, args: Record<string, unknown>): void {
     if (this.failWith !== null) {
       throw this.failWith;

@@ -193,4 +193,22 @@ describe("SDK-backed conversations", () => {
     expect(body["applicationContext"]).toEqual({screen: "Invoices"});
     expect(turn).toMatchObject({assistantMessage: {content: "Hello"}});
   });
+  test("deleteAttachment posts the attachment id without actor headers and accepts the 204", async () => {
+    // Given
+    responses.push({status: 204, body: ""});
+
+    // When
+    await conversations().deleteAttachment(CONVERSATION_ID, "attachment-1");
+
+    // Then
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.method).toBe("POST");
+    expect(requests[0]?.path).toBe(
+      `/v1/conversations/${CONVERSATION_ID}/actions/delete-attachment`,
+    );
+    expect(JSON.parse(requests[0]!.body)).toEqual({
+      attachmentId: "attachment-1",
+    });
+    expect(requests[0]?.headers.get("x-actor-id")).toBeNull();
+  });
 });

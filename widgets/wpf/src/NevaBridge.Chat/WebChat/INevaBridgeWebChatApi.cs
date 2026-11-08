@@ -71,6 +71,15 @@ public interface INevaBridgeWebChatApi
         string? after,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Removes one file from an open conversation. NevaBridge answers 204 without a body, also for
+    /// a file that is already gone.
+    /// </summary>
+    Task DeleteAttachmentAsync(
+        string conversationId,
+        string attachmentId,
+        CancellationToken cancellationToken = default);
+
     Task<JsonElement> GetConversationAsync(
         string conversationId,
         CancellationToken cancellationToken = default);

@@ -111,6 +111,15 @@ public sealed class FakeWebChatApi : INevaBridgeWebChatApi
         return Json("""{"events": [{"type": "done", "revision": 1}], "cursor": "1", "finished": true}""");
     }
 
+    public Task DeleteAttachmentAsync(
+        string conversationId,
+        string attachmentId,
+        CancellationToken cancellationToken = default)
+    {
+        Record("deleteAttachment", ("conversationId", conversationId), ("attachmentId", attachmentId));
+        return Task.CompletedTask;
+    }
+
     public Task<JsonElement> GetConversationAsync(
         string conversationId,
         CancellationToken cancellationToken = default)

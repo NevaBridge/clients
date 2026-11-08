@@ -7,6 +7,10 @@ conformance case of the pinned protocol.
 
 ### Added
 
+- The optional request `deleteAttachment`, which removes a file the page attached, for a
+  conversation the page started; the hosted page offers removal once a host answers it. A
+  `NevaBridgeConversations` implementation of your own needs `deleteAttachment` too;
+  `createSdkConversations` has it.
 - The Generic Intake requests `startIntakeConversation`, `startIntakeTurn`, `getIntakeTurnEvents`
   and `getConversation`. A page that speaks them runs a Generic Intake conversation through the
   bridge, polling each turn. Upgrading needs no code change unless you replaced
