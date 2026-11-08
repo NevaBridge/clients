@@ -627,6 +627,11 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         });
     }
 
+    /// <summary>
+    /// Uploads a failed file again. A file that kept its admission first has that admission deleted:
+    /// its bytes may have arrived, and NevaBridge would attach them later, so a new copy goes up only
+    /// once the old one cannot.
+    /// </summary>
     private Task RetryAsync(AttachmentItem failed, PickedFile file, AttachmentUpload? admission)
     {
         if (_conversationId is not { } conversationId || _isAttaching || IsEnded)
@@ -634,11 +639,15 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
             return Task.CompletedTask;
         }
 
-        // A live admission is uploaded again: storage keeps one copy and confirming twice is harmless.
-        // Once its address has expired, NevaBridge has settled it, so a new upload starts.
-        return RunAttachmentAsync(() => admission is not null && admission.ExpiresAt > DateTimeOffset.UtcNow
-            ? UploadAdmittedAsync(conversationId, file, Replace(failed, Uploading(file.Name)), admission)
-            : UploadAsync(file, Replace(failed, Uploading(file.Name))));
+        return RunAttachmentAsync(async () =>
+        {
+            if (admission is not null)
+            {
+                await _conversations.DeleteAttachmentAsync(conversationId, admission.AttachmentId, _closing.Token);
+            }
+
+            await UploadAsync(file, Replace(failed, Uploading(file.Name)));
+        });
     }
 
     /// <summary>Deletes a failed file's admission on NevaBridge, so bytes that did arrive cannot attach it later.</summary>
@@ -756,7 +765,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>
     /// Uploads to an admission the chat holds. On any failure but a 403 the file stays listed with
-    /// its admission, so Retry uploads to the same admission and Dismiss deletes it: whether or not
+    /// its admission, which Dismiss deletes and Retry deletes before a new upload: whether or not
     /// the bytes arrived, neither can leave a second or a forgotten copy behind.
     /// </summary>
     private async Task UploadAdmittedAsync(string conversationId, PickedFile file, AttachmentItem row, AttachmentUpload admission)

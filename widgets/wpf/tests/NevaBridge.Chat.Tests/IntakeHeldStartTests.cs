@@ -203,6 +203,7 @@ public sealed class IntakeHeldStartTests
         FakeIntakeConversations nevaBridge = new FakeIntakeConversations()
             .Answer("startHeldIntakeConversation", Held("crash.log"))
             .Answer("uploadAttachment", new NevaBridgeUploadException(503))
+            .Answer("deleteAttachment", new object())
             .Answer("attachFile", LogAttached);
         IntakeChatViewModel chat = Chat(nevaBridge, Log);
         chat.AttachCommand.Execute(null);
@@ -242,14 +243,17 @@ public sealed class IntakeHeldStartTests
         Assert.Equal(["crash.log", "screen.png"], chat.Attachments.Select(item => item.FileName));
     }
 
-    [Fact]
-    public void A_first_file_whose_upload_answer_was_lost_is_retried_on_its_own_admission()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Retrying_a_first_file_deletes_its_admission_before_uploading_it_again(bool live)
     {
         // Given: the answer to the upload was lost, so the bytes may or may not have arrived
         FakeIntakeConversations nevaBridge = new FakeIntakeConversations()
-            .Answer("startHeldIntakeConversation", Held("crash.log", live: true))
+            .Answer("startHeldIntakeConversation", Held("crash.log", live: live))
             .Answer("uploadAttachment", new HttpRequestException("connection reset"))
-            .Answer("uploadAttachment", LogAttached);
+            .Answer("deleteAttachment", new object())
+            .Answer("attachFile", LogAttached);
         IntakeChatViewModel chat = Chat(nevaBridge, Log);
         chat.AttachCommand.Execute(null);
         Assert.Equal(AttachmentState.Failed, Assert.Single(chat.Attachments).State);
@@ -257,12 +261,31 @@ public sealed class IntakeHeldStartTests
         // When
         Assert.Single(chat.Attachments).RetryCommand.Execute(null);
 
-        // Then: the same admission is uploaded and confirmed again, so no second copy can appear
-        Assert.DoesNotContain("attachFile", nevaBridge.Operations);
-        Assert.Equal(
-            ["attachment-1", "attachment-1"],
-            nevaBridge.Calls.Where(c => c.Operation == "uploadAttachment").Select(c => ((AttachmentUpload)c.Arguments["upload"]!).AttachmentId));
+        // Then: whatever arrived first is gone before the new copy, so one copy is attached
+        Assert.Equal(["startHeldIntakeConversation", "uploadAttachment", "deleteAttachment", "attachFile"], nevaBridge.Operations);
+        Assert.Equal("attachment-1", nevaBridge.Calls[2].Arguments["attachmentId"]);
         Assert.Equal(LogAttached, Assert.Single(chat.Attachments).Attachment);
+    }
+
+    [Fact]
+    public void A_retry_whose_deletion_fails_keeps_the_file_and_uploads_nothing()
+    {
+        // Given
+        FakeIntakeConversations nevaBridge = new FakeIntakeConversations()
+            .Answer("startHeldIntakeConversation", Held("crash.log"))
+            .Answer("uploadAttachment", new HttpRequestException("connection reset"))
+            .Answer("deleteAttachment", new HttpRequestException("offline"))
+            .Answer("listAttachments", (IReadOnlyList<Attachment>)[]);
+        IntakeChatViewModel chat = Chat(nevaBridge, Log);
+        chat.AttachCommand.Execute(null);
+
+        // When
+        Assert.Single(chat.Attachments).RetryCommand.Execute(null);
+
+        // Then
+        Assert.DoesNotContain("attachFile", nevaBridge.Operations);
+        Assert.Equal(AttachmentState.Failed, Assert.Single(chat.Attachments).State);
+        Assert.NotNull(chat.AttachmentNotice);
     }
 
     [Fact]

@@ -50,12 +50,12 @@ against all of them at once.
     stays listed as not uploaded with Retry and Dismiss and never holds up a reply. Because
     NevaBridge attaches arrived bytes even unconfirmed, and a listing omits them while their
     address is live, the chat never forgets an upload whose outcome is open: the first file keeps
-    its admission, so Retry uploads to the same admission (storage keeps one copy, and confirming
-    twice is harmless) until its address expires, Dismiss deletes the admission on NevaBridge, and
-    a listing that shows the admission drops the row. A later file, uploaded through
-    `AttachFileAsync`, gets Retry and Dismiss only when storage refused it outright; when the
-    outcome is open (no answer, or 412 because storage already holds it) it is settled by listing
-    (rule 12).
+    its admission, and only deleting that admission on NevaBridge lets go of it. Dismiss deletes
+    it; Retry deletes it before uploading a new copy, so at most one copy is ever attached; when
+    deleting fails, the file stays as it was. A listing that shows the admission drops the row. A
+    later file, uploaded through `AttachFileAsync`, gets Retry and Dismiss only when storage
+    refused it outright; when the outcome is open (no answer, or 412 because storage already holds
+    it) it is settled by listing (rule 12).
 11. One attachment operation runs at a time: attach, remove and listing share one lock
     (`_isAttaching`). A conversation read that comes while an upload, removal or listing runs
     queues its listing until that operation has ended, and attach and remove are refused while a
