@@ -40,6 +40,28 @@ public sealed record StartIntakeConversationRequest(UserMessage UserMessage)
     public ReporterContact? ReporterContact { get; init; }
 }
 
+/// <summary>A file the reporter picked, as NevaBridge admits it before the upload.</summary>
+public sealed record AttachmentUploadRequest(string FileName, long SizeBytes);
+
+/// <summary>
+/// Starts a Generic Intake conversation without a message, holding the files the reporter picked
+/// before writing. The first message follows as a turn at revision 0.
+/// </summary>
+public sealed record StartHeldIntakeConversationRequest(IReadOnlyList<AttachmentUploadRequest> Attachments)
+{
+    /// <inheritdoc cref="StartIntakeConversationRequest.ApplicationContext"/>
+    public IReadOnlyDictionary<string, string>? ApplicationContext { get; init; }
+
+    /// <inheritdoc cref="StartIntakeConversationRequest.ReporterContact"/>
+    public ReporterContact? ReporterContact { get; init; }
+}
+
+/// <summary>Where one admitted file is uploaded; the address is presigned and expires.</summary>
+public sealed record AttachmentUpload(string AttachmentId, string FileName, Uri UploadUrl, DateTimeOffset ExpiresAt);
+
+/// <summary>A conversation started without a message, with one upload per file in request order.</summary>
+public sealed record HeldIntakeConversation(string ConversationId, IReadOnlyList<AttachmentUpload> Attachments);
+
 /// <summary>An email address, a phone number or both; at least one must be set.</summary>
 public sealed record ReporterContact
 {

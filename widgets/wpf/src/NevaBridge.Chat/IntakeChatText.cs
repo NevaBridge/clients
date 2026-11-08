@@ -49,6 +49,22 @@ public static class IntakeChatText
 
     public const string RemoveFile = "Remove this file";
 
+    public const string Uploading = "Uploading";
+
+    public const string UploadFailed = "Not uploaded";
+
+    public const string RetryUpload = "Retry";
+
+    public const string DismissFile = "Dismiss";
+
+    /// <summary>The accessible name of a failed file's retry button; <c>{0}</c> is the file name.</summary>
+    public const string RetryNamedFile = "Upload {0} again";
+
+    /// <summary>The accessible name of a failed file's dismiss button; <c>{0}</c> is the file name.</summary>
+    public const string DismissNamedFile = "Dismiss {0}";
+
+    public const string WaitingForFiles = "Waiting for the files to finish uploading";
+
     /// <summary>The accessible name of a file's remove button; <c>{0}</c> is the file name.</summary>
     public const string RemoveNamedFile = "Remove {0}";
 
@@ -103,6 +119,7 @@ public static class IntakeChatText
         ("checking", _) => "Reading your message",
         ("planning", _) => "Working out the next step",
         ("writing", _) => "Writing a reply",
+        ("attachments", _) => "Looking at the attached images",
         ("tool", "searchKnowledge") => "Searching the knowledge base",
         ("tool", "inspectTemplate") => "Checking the report template",
         ("tool", "readTranscript") => "Re-reading the chat",

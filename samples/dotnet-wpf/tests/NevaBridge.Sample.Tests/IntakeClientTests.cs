@@ -73,6 +73,101 @@ public sealed class IntakeClientTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StartHeldIntakeConversation_sends_the_files_and_reads_their_uploads()
+    {
+        // Given
+        _api.Respond(201, $$"""
+            {"conversationId":"{{ConversationId}}","attachments":[{"attachmentId":"attachment-1","fileName":"app.log",
+             "uploadUrl":"{{_api.BaseUrl}}upload/attachment-1?signature=abc","expiresAt":"2026-09-30T10:15:00Z"}]}
+            """);
+        StartHeldIntakeConversationRequest request = new([new AttachmentUploadRequest("app.log", 15)])
+        {
+            ReporterContact = new ReporterContact { Email = "jane@example.com" },
+        };
+
+        // When
+        HeldIntakeConversation held = await _client.StartHeldIntakeConversationAsync(
+            ProductId,
+            new NevaBridgeReporter("CORP\\jdoe", "Jane Doe"),
+            request);
+
+        // Then
+        Assert.Equal(ConversationId, held.ConversationId);
+        AttachmentUpload upload = Assert.Single(held.Attachments);
+        Assert.Equal("attachment-1", upload.AttachmentId);
+        Assert.Equal(new Uri(_api.BaseUrl, "upload/attachment-1?signature=abc"), upload.UploadUrl);
+        RecordedRequest sent = Assert.Single(_api.Requests);
+        Assert.Equal("POST", sent.Method);
+        Assert.Equal($"/v1/products/{ProductId}/intake-conversations", sent.PathAndQuery);
+        Assert.Equal("CORP\\jdoe", sent.Headers["X-Actor-Id"]);
+        AssertSameJson(
+            """{"attachments":[{"fileName":"app.log","sizeBytes":15}],"reporterContact":{"email":"jane@example.com"}}""",
+            sent.Body);
+    }
+
+    [Fact]
+    public async Task UploadAttachment_puts_the_bytes_to_the_issued_address_and_confirms()
+    {
+        // Given
+        byte[] bytes = System.Text.Encoding.UTF8.GetBytes("error at line 7");
+        _api.Respond(200, "");
+        _api.Respond(200, """
+            {"id":"attachment-1","fileName":"app.log","kind":"text","sizeBytes":15,
+             "uploadedBy":"api:jdoe","uploadedAt":"2026-09-30T10:02:00Z"}
+            """);
+        AttachmentUpload upload = new("attachment-1", "app.log", new Uri(_api.BaseUrl, "upload/attachment-1?signature=abc"), DateTimeOffset.UnixEpoch);
+
+        // When
+        Attachment attachment = await _client.UploadAttachmentAsync(
+            ConversationId,
+            upload,
+            new PickedFile("app.log", bytes.Length, () => new MemoryStream(bytes)));
+
+        // Then
+        Assert.Equal("app.log", attachment.FileName);
+        Assert.Equal(2, _api.Requests.Count);
+        RecordedRequest put = _api.Requests[0];
+        Assert.Equal("PUT", put.Method);
+        Assert.Equal("/upload/attachment-1?signature=abc", put.PathAndQuery);
+        Assert.False(put.Headers.ContainsKey("Authorization"), "the presigned URL must not receive the API key");
+        Assert.Equal("error at line 7", put.Body);
+        RecordedRequest confirm = _api.Requests[1];
+        Assert.Equal($"/v1/conversations/{ConversationId}/actions/confirm-attachment-upload", confirm.PathAndQuery);
+        AssertSameJson("""{"attachmentId":"attachment-1"}""", confirm.Body);
+    }
+
+    [Fact]
+    public async Task UploadAttachment_whose_bytes_are_refused_confirms_nothing()
+    {
+        // Given
+        _api.Respond(403, "");
+        AttachmentUpload upload = new("attachment-1", "app.log", new Uri(_api.BaseUrl, "upload/attachment-1"), DateTimeOffset.UnixEpoch);
+
+        // When
+        NevaBridgeUploadException error = await Assert.ThrowsAsync<NevaBridgeUploadException>(() =>
+            _client.UploadAttachmentAsync(ConversationId, upload, new PickedFile("app.log", 1, () => new MemoryStream(new byte[1]))));
+
+        // Then
+        Assert.Equal(403, error.StatusCode);
+        Assert.Single(_api.Requests);
+    }
+
+    [Fact]
+    public async Task A_start_whose_uploads_could_not_be_signed_names_the_stored_conversation()
+    {
+        // Given
+        _api.Respond(424, $$"""{"error":"FailedDependency","message":"Upload URLs could not be signed.","conversationId":"{{ConversationId}}"}""");
+
+        // When
+        NevaBridgeApiException error = await Assert.ThrowsAsync<NevaBridgeApiException>(() =>
+            _client.StartHeldIntakeConversationAsync(ProductId, new NevaBridgeReporter("jdoe"), new StartHeldIntakeConversationRequest([new AttachmentUploadRequest("app.log", 15)])));
+
+        // Then
+        Assert.Equal(424, error.StatusCode);
+        Assert.Equal(ConversationId, error.ConversationId);
+    }
+
+    [Fact]
     public async Task StartIntakeTurn_sends_the_revision_and_finish()
     {
         // Given

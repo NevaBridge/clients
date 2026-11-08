@@ -7,10 +7,39 @@ namespace NevaBridge.Chat;
 /// <summary>A report a finished Generic Intake conversation filed, as the chat lists it.</summary>
 public sealed record FiledReportItem(string Title, string Category, string Status, string? Reason);
 
-/// <summary>A file attached to the conversation, with the command that removes it.</summary>
-public sealed record AttachmentItem(Attachment Attachment, AsyncCommand RemoveCommand)
+/// <summary>Where a file of the chat's list stands.</summary>
+public enum AttachmentState
 {
-    public string FileName => Attachment.FileName;
+    /// <summary>The file is on its way to NevaBridge.</summary>
+    Uploading,
+
+    /// <summary>NevaBridge holds the file; it can be removed.</summary>
+    Uploaded,
+
+    /// <summary>The bytes did not arrive, so nothing was attached; it can be retried or dismissed.</summary>
+    Failed,
+}
+
+/// <summary>A file in the chat's list, with the commands its state offers.</summary>
+public sealed record AttachmentItem(string FileName, AttachmentState State)
+{
+    /// <summary>The attachment NevaBridge holds; set only when <see cref="State"/> is Uploaded.</summary>
+    public Attachment? Attachment { get; init; }
+
+    /// <summary>Removes an uploaded file; it can run only for one.</summary>
+    public required AsyncCommand RemoveCommand { get; init; }
+
+    /// <summary>Uploads a failed file again; it can run only for one.</summary>
+    public required AsyncCommand RetryCommand { get; init; }
+
+    /// <summary>Drops a failed file from the list; it can run only for one.</summary>
+    public required AsyncCommand DismissCommand { get; init; }
+
+    public bool IsUploading => State == AttachmentState.Uploading;
+
+    public bool IsUploaded => State == AttachmentState.Uploaded;
+
+    public bool IsFailed => State == AttachmentState.Failed;
 }
 
 /// <summary>What the host supplies beyond the reporter, all optional.</summary>
@@ -97,6 +126,12 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     private readonly CancellationTokenSource _closing = new();
 
     private string? _conversationId;
+
+    // Started with files and no message: its first turn's failure keeps it, unlike a start with a message.
+    private bool _heldStart;
+
+    // The attachment operation a message waits for, so its reply sees every picked file.
+    private Task _attaching = Task.CompletedTask;
     private int _revision;
     private int _savedUserMessages;
     private IReadOnlyList<Message> _transcript = [];
@@ -259,22 +294,26 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>A reply could not be loaded; <see cref="CheckAgainCommand"/> looks again.</summary>
     public bool CanCheckAgain => _unconfirmed is not null;
 
+    /// <remarks>Only after the first reply: NevaBridge refuses to finish a conversation without a message.</remarks>
     public bool CanFinish =>
-        _conversationId is not null && !IsBusy && !IsEnded && !_isAttaching && _unconfirmed is null
+        _conversationId is not null && _revision > 0 && !IsBusy && !IsEnded && !_isAttaching && _unconfirmed is null
         && string.IsNullOrWhiteSpace(Draft) && !VoiceHoldsComposer;
 
     /// <summary>Why Finish is unavailable while the composer holds text.</summary>
     public string? FinishHint =>
-        _conversationId is not null && !IsEnded && !string.IsNullOrWhiteSpace(Draft) ? IntakeChatText.FinishBlocked : null;
+        _conversationId is not null && _revision > 0 && !IsEnded && !string.IsNullOrWhiteSpace(Draft) ? IntakeChatText.FinishBlocked : null;
 
     /// <summary>Whether this chat offers attachments at all; <see cref="CanAttach"/> says whether now.</summary>
     public bool OffersAttachments => _options.PickFile is not null && !_attachmentsOff;
 
     /// <remarks>
-    /// Only once the first turn is saved: a first turn that fails deletes its conversation, and
-    /// files attached to it would go with it.
+    /// Before the first message the first file starts the conversation. A conversation started with
+    /// a message takes files only once that message is saved: a first turn that fails deletes it,
+    /// and files attached to it would go with it.
     /// </remarks>
-    public bool CanAttach => OffersAttachments && _conversationId is not null && _savedUserMessages > 0 && !IsEnded && !_isAttaching;
+    public bool CanAttach =>
+        OffersAttachments && !IsEnded && !_isAttaching
+        && (_conversationId is null ? !IsBusy : _heldStart || _savedUserMessages > 0);
 
     public string? EndedText => IsEnded
         ? FiledReports.Count == 0 ? IntakeChatText.Ended + " " + IntakeChatText.NothingFiled : IntakeChatText.Ended
@@ -328,6 +367,13 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         int savedBefore = _savedUserMessages;
         try
         {
+            if (!_attaching.IsCompleted)
+            {
+                // The reply should see every picked file; a file that fails stays listed for Retry.
+                ProgressText = IntakeChatText.WaitingForFiles;
+                await _attaching.WaitAsync(_closing.Token);
+            }
+
             if (_conversationId is null)
             {
                 await StartConversationAsync(text, savedBefore);
@@ -451,7 +497,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
                         await SettleAsync(turn.Text, turn.SavedBefore);
                         return;
                     case "error":
-                        if (turn.FirstTurn)
+                        if (turn.FirstTurn && !_heldStart)
                         {
                             // A failed first turn deletes its conversation; the next message starts a new one.
                             _conversationId = null;
@@ -501,7 +547,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
 
             // A running turn's message is not saved yet, so a conversation without messages is
             // still on its first turn, whose failure deletes it.
-            await FollowTurnAsync(new Unconfirmed(text, savedBefore, activeTurnId, Cursor: null, FirstTurn: detail.Messages.Count == 0));
+            await FollowTurnAsync(new Unconfirmed(text, savedBefore, activeTurnId, Cursor: null, FirstTurn: detail.Messages.Count == 0 && !_heldStart));
             return;
         }
 
@@ -552,41 +598,73 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     }
 
     // Attachment state follows these rules:
-    // 1. One attachment operation (attach, remove, list) runs at a time, guarded by _isAttaching,
-    //    so a list answer can never overwrite a later upload or removal.
+    // 1. One attachment operation (attach, retry, remove, list) runs at a time, guarded by
+    //    _isAttaching, so a list answer can never overwrite a later upload or removal.
     // 2. A 403 from any attachment call means staff switched attachments off: the chat stops
     //    offering them.
     // 3. After an action whose outcome is uncertain, the chat lists what NevaBridge holds; when
-    //    that fails too, FilesUnknown says so and RefreshFilesCommand tries again.
+    //    that fails too, FilesUnknown says so and RefreshFilesCommand tries again. An upload whose
+    //    bytes did not arrive attached nothing, so its file stays listed for Retry instead.
     // 4. Closing the window ends any of them quietly.
 
-    private async Task AttachAsync()
+    private Task AttachAsync()
     {
-        if (_options.PickFile is null || _conversationId is not { } conversationId || _isAttaching)
+        if (_options.PickFile is not { } pickFile || !CanAttach)
         {
-            return;
+            return Task.CompletedTask;
         }
 
+        return RunAttachmentAsync(async () =>
+        {
+            PickedFile? file = await pickFile();
+            if (file is not null)
+            {
+                await UploadAsync(file, Track(Uploading(file.Name)));
+            }
+        });
+    }
+
+    private Task RetryAsync(AttachmentItem failed, PickedFile file)
+    {
+        if (_conversationId is null || _isAttaching || IsEnded)
+        {
+            return Task.CompletedTask;
+        }
+
+        return RunAttachmentAsync(() => UploadAsync(file, Replace(failed, Uploading(file.Name))));
+    }
+
+    /// <summary>
+    /// Runs one attachment operation under the lock. A message sent meanwhile waits for it, so the
+    /// reply sees the files.
+    /// </summary>
+    private async Task RunAttachmentAsync(Func<Task> operation)
+    {
         AttachmentNotice = null;
         SetAttaching(true);
+        Task running = RunGuardedAsync(operation);
+        _attaching = running;
+        await running;
+    }
+
+    private async Task RunGuardedAsync(Func<Task> operation)
+    {
         try
         {
-            PickedFile? file = await _options.PickFile();
-            if (file is null)
-            {
-                return;
-            }
-
-            ShowAttachment(await _conversations.AttachFileAsync(conversationId, _reporter.Id, file, _closing.Token));
+            await operation();
         }
         catch (OperationCanceledException) when (_closing.IsCancellationRequested)
         {
             // The window closed while the file was on its way.
         }
+        catch (Exception error) when (_conversationId is { } conversationId)
+        {
+            // The file picker failed, or something past the upload; what NevaBridge holds is uncertain.
+            await ShowAttachmentFailureAsync(conversationId, error);
+        }
         catch (Exception error)
         {
-            // The confirmation may have been saved even though its answer was lost.
-            await ShowAttachmentFailureAsync(conversationId, error);
+            AttachmentNotice = ChatErrors.Describe(error);
         }
         finally
         {
@@ -595,9 +673,95 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>
+    /// Uploads a picked file. Before the first message it starts the conversation with the file;
+    /// afterwards it takes the ordinary upload.
+    /// </summary>
+    private async Task UploadAsync(PickedFile file, AttachmentItem row)
+    {
+        if (_conversationId is { } conversationId)
+        {
+            await UploadToAsync(conversationId, file, row, () => _conversations.AttachFileAsync(conversationId, _reporter.Id, file, _closing.Token));
+            return;
+        }
+
+        HeldIntakeConversation held;
+        try
+        {
+            held = await _conversations.StartHeldIntakeConversationAsync(
+                _productId,
+                _reporter,
+                new StartHeldIntakeConversationRequest([new AttachmentUploadRequest(file.Name, file.SizeBytes)])
+                {
+                    ApplicationContext = _options.ApplicationContext,
+                    ReporterContact = _options.ReporterContact,
+                },
+                _closing.Token);
+        }
+        catch (NevaBridgeApiException error) when (error is { StatusCode: 424, ConversationId: { } stored })
+        {
+            // Stored without signed uploads: request this file's upload again, as for a later file.
+            HoldConversation(stored);
+            await UploadToAsync(stored, file, row, () => _conversations.AttachFileAsync(stored, _reporter.Id, file, _closing.Token));
+            return;
+        }
+        catch (Exception error) when (error is not OperationCanceledException || !_closing.IsCancellationRequested)
+        {
+            // A refused file creates nothing; NevaBridge names the file and the reason.
+            Attachments.Remove(row);
+            if (IsForbidden(error))
+            {
+                TurnAttachmentsOff();
+            }
+            else
+            {
+                AttachmentNotice = ChatErrors.Describe(error);
+            }
+
+            return;
+        }
+
+        HoldConversation(held.ConversationId);
+        AttachmentUpload upload = held.Attachments[0];
+        await UploadToAsync(held.ConversationId, file, row, () => _conversations.UploadAttachmentAsync(held.ConversationId, upload, file, _closing.Token));
+    }
+
+    private async Task UploadToAsync(string conversationId, PickedFile file, AttachmentItem row, Func<Task<Attachment>> upload)
+    {
+        try
+        {
+            Replace(row, Uploaded(await upload()));
+        }
+        catch (NevaBridgeUploadException error)
+        {
+            // The bytes did not arrive, so nothing was attached: the file stays for Retry.
+            Replace(row, Failed(file));
+            AttachmentNotice = ChatErrors.Describe(error);
+        }
+        catch (Exception error) when (error is not OperationCanceledException || !_closing.IsCancellationRequested)
+        {
+            // The confirmation may have been saved even though its answer was lost.
+            Attachments.Remove(row);
+            await ShowAttachmentFailureAsync(conversationId, error);
+        }
+        catch (OperationCanceledException)
+        {
+            Attachments.Remove(row);
+            throw;
+        }
+    }
+
+    private void HoldConversation(string conversationId)
+    {
+        _conversationId = conversationId;
+        _heldStart = true;
+        _revision = 0;
+        RaiseCommands();
+    }
+
     private async Task RemoveAsync(AttachmentItem item)
     {
-        if (_conversationId is not { } conversationId || _isAttaching)
+        if (_conversationId is not { } conversationId || item.Attachment is not { } attachment || _isAttaching)
         {
             return;
         }
@@ -606,7 +770,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         SetAttaching(true);
         try
         {
-            await _conversations.DeleteAttachmentAsync(conversationId, item.Attachment.Id, _closing.Token);
+            await _conversations.DeleteAttachmentAsync(conversationId, attachment.Id, _closing.Token);
             Attachments.Remove(item);
         }
         catch (OperationCanceledException) when (_closing.IsCancellationRequested)
@@ -662,11 +826,69 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void ShowAttachment(Attachment attachment)
+    private void ShowAttachment(Attachment attachment) => Attachments.Add(Uploaded(attachment));
+
+    private AttachmentItem Uploading(string fileName) => new(fileName, AttachmentState.Uploading)
+    {
+        RemoveCommand = Unavailable,
+        RetryCommand = Unavailable,
+        DismissCommand = Unavailable,
+    };
+
+    private AttachmentItem Uploaded(Attachment attachment)
     {
         AttachmentItem? item = null;
-        item = new AttachmentItem(attachment, new AsyncCommand(() => RemoveAsync(item!), () => !IsEnded && !_isAttaching));
-        Attachments.Add(item);
+        item = new AttachmentItem(attachment.FileName, AttachmentState.Uploaded)
+        {
+            Attachment = attachment,
+            RemoveCommand = new AsyncCommand(() => RemoveAsync(item!), () => !IsEnded && !_isAttaching),
+            RetryCommand = Unavailable,
+            DismissCommand = Unavailable,
+        };
+        return item;
+    }
+
+    private AttachmentItem Failed(PickedFile file)
+    {
+        AttachmentItem? item = null;
+        item = new AttachmentItem(file.Name, AttachmentState.Failed)
+        {
+            RemoveCommand = Unavailable,
+            RetryCommand = new AsyncCommand(() => RetryAsync(item!, file), () => !IsEnded && !_isAttaching),
+            DismissCommand = new AsyncCommand(
+                () =>
+                {
+                    Attachments.Remove(item!);
+                    AttachmentNotice = null;
+                    return Task.CompletedTask;
+                },
+                () => !_isAttaching),
+        };
+        return item;
+    }
+
+    private static AsyncCommand Unavailable { get; } = new(() => Task.CompletedTask, () => false);
+
+    private AttachmentItem Track(AttachmentItem row)
+    {
+        Attachments.Add(row);
+        return row;
+    }
+
+    private AttachmentItem Replace(AttachmentItem row, AttachmentItem replacement)
+    {
+        int index = Attachments.IndexOf(row);
+        if (index < 0)
+        {
+            Attachments.Add(replacement);
+        }
+        else
+        {
+            Attachments[index] = replacement;
+        }
+
+        RaiseCommands();
+        return replacement;
     }
 
     /// <summary>Says why an attachment action failed and, since its outcome is uncertain, lists the files.</summary>
@@ -705,10 +927,17 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
 
+        // Files that are uploading or whose upload failed are not NevaBridge's yet; they stay.
+        List<AttachmentItem> local = Attachments.Where(item => !item.IsUploaded).ToList();
         Attachments.Clear();
         foreach (Attachment attachment in held)
         {
             ShowAttachment(attachment);
+        }
+
+        foreach (AttachmentItem item in local)
+        {
+            Attachments.Add(item);
         }
 
         SetFilesUnknown(false);
@@ -831,6 +1060,8 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         foreach (AttachmentItem item in Attachments)
         {
             item.RemoveCommand.RaiseCanExecuteChanged();
+            item.RetryCommand.RaiseCanExecuteChanged();
+            item.DismissCommand.RaiseCanExecuteChanged();
         }
 
         OnPropertyChanged(nameof(CanFinish));

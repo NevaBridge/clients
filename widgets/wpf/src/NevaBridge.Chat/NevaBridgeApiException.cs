@@ -22,6 +22,12 @@ public sealed class NevaBridgeApiException : Exception
     /// <summary>For a 409 IntakeTurnRunning: the Generic Intake turn that is still running.</summary>
     public string? TurnId { get; init; }
 
+    /// <summary>
+    /// For a 424 to a start with attachments: the conversation NevaBridge stored although it could not
+    /// sign the uploads. Request each upload again for it.
+    /// </summary>
+    public string? ConversationId { get; init; }
+
     /// <summary>The gateway gave up before NevaBridge handled the request, typically after 29 seconds.</summary>
     public bool IsEdgeFailure => ErrorName is null;
 

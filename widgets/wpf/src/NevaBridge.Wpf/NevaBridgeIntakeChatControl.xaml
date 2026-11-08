@@ -173,10 +173,25 @@
                                 BorderBrush="{DynamicResource NevaBridge.BorderBrush}">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding FileName}" VerticalAlignment="Center" />
+                                <TextBlock Margin="6,0,2,0" VerticalAlignment="Center" FontStyle="Italic"
+                                           Text="{x:Static local:IntakeChatText.Uploading}"
+                                           Visibility="{Binding IsUploading, Converter={StaticResource VisibleWhenTrue}}" />
                                 <Button Margin="4,0,0,0" Padding="5,0" Content="✕" BorderThickness="0" Background="Transparent"
                                         Command="{Binding RemoveCommand}"
+                                        Visibility="{Binding IsUploaded, Converter={StaticResource VisibleWhenTrue}}"
                                         AutomationProperties.Name="{Binding FileName, StringFormat={x:Static local:IntakeChatText.RemoveNamedFile}}"
                                         ToolTip="{x:Static local:IntakeChatText.RemoveFile}" />
+                                <StackPanel Orientation="Horizontal"
+                                            Visibility="{Binding IsFailed, Converter={StaticResource VisibleWhenTrue}}">
+                                    <TextBlock Margin="6,0,2,0" VerticalAlignment="Center" FontStyle="Italic"
+                                               Text="{x:Static local:IntakeChatText.UploadFailed}" />
+                                    <Button Margin="4,0,0,0" Padding="6,0" Content="{x:Static local:IntakeChatText.RetryUpload}"
+                                            Command="{Binding RetryCommand}"
+                                            AutomationProperties.Name="{Binding FileName, StringFormat={x:Static local:IntakeChatText.RetryNamedFile}}" />
+                                    <Button Margin="4,0,0,0" Padding="6,0" Content="{x:Static local:IntakeChatText.DismissFile}"
+                                            Command="{Binding DismissCommand}"
+                                            AutomationProperties.Name="{Binding FileName, StringFormat={x:Static local:IntakeChatText.DismissNamedFile}}" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </DataTemplate>

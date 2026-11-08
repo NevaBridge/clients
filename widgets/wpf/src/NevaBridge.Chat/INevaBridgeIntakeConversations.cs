@@ -16,6 +16,28 @@ public interface INevaBridgeIntakeConversations
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Starts a conversation without a message, holding the given files until the first message,
+    /// which is a turn at revision 0. Upload each file with <see cref="UploadAttachmentAsync"/>.
+    /// Requires <c>chatAttachments</c>. When NevaBridge stored the conversation but could not sign the
+    /// uploads, it answers 424 and <see cref="NevaBridgeApiException.ConversationId"/> names it.
+    /// </summary>
+    Task<HeldIntakeConversation> StartHeldIntakeConversationAsync(
+        string productId,
+        NevaBridgeReporter reporter,
+        StartHeldIntakeConversationRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Uploads a file to an address NevaBridge already issued and confirms it. Fails with
+    /// <see cref="NevaBridgeUploadException"/> when the bytes did not arrive, so nothing was attached.
+    /// </summary>
+    Task<Attachment> UploadAttachmentAsync(
+        string conversationId,
+        AttachmentUpload upload,
+        PickedFile file,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Starts the next turn. Fails with a 409 <c>RevisionConflict</c> when the revision is stale, and
     /// with a 409 <c>IntakeTurnRunning</c>, naming the running turn in
     /// <see cref="NevaBridgeApiException.TurnId"/>, while another turn runs.

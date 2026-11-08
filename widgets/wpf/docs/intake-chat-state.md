@@ -10,9 +10,15 @@ against all of them at once.
 ### Turns
 
 1. One message is on its way at a time. Send, Finish and Check again are unavailable while a turn
-   is followed (`IsBusy`) or while a reply could not be loaded (`CanCheckAgain`).
-2. The first message starts the conversation. A first turn that ends in `error` deletes its
-   conversation on NevaBridge, so the chat forgets it and the next message starts a new one.
+   is followed (`IsBusy`) or while a reply could not be loaded (`CanCheckAgain`). A message sent
+   while a file is being picked or uploaded shows as sent and waits until that file is uploaded
+   or failed, so the reply sees it. Finish is offered only after the first reply, because
+   NevaBridge refuses to finish a conversation without a message (`NothingToFinish`).
+2. Without files, the first message starts the conversation. A first turn that ends in `error`
+   deletes that conversation on NevaBridge, so the chat forgets it and the next message starts a
+   new one. When files came first (rule 10), the first message is a turn at revision 0 on the
+   conversation they started; its failure keeps the conversation and its files, and the message
+   goes back to the composer.
 3. A later message sends the revision the chat last read. A refusal because another turn runs
    follows that turn; a refusal because the revision is stale reads the conversation.
 4. A message counts as saved only when the conversation holds more reporter messages than before
@@ -28,18 +34,28 @@ against all of them at once.
 8. A closed conversation takes no more messages and lists every report it filed.
 9. When the answer to the very first start is lost, the chat cannot find that conversation; the
    message returns to the composer and sending again starts another one. This is a limitation of
-   the API, not prevented here.
+   the API, not prevented here. The same holds for a lost answer to a start with a file: the file
+   is reported as not attached, and NevaBridge deletes the empty conversation after 24 hours.
 
 ### Attachments
 
-10. Attachments are offered only with a file picker, only once the first turn is saved (files of a
-    deleted first conversation would vanish with it), and never after the conversation ended.
+10. Attachments are offered only with a file picker and never after the conversation ended.
+    Before the first message, the first picked file starts the conversation without a message
+    (`StartHeldIntakeConversationAsync`) and uploads at once to the address NevaBridge returned;
+    later files take the ordinary upload. A refused first file creates nothing and says why. When
+    NevaBridge stored the conversation but could not sign the upload (424 with a
+    `conversationId`), the chat keeps that conversation and requests the upload again. While a
+    first message without files is on its way, attaching waits: that conversation is deleted if
+    its first turn fails, and files attached to it would go with it. A file whose bytes did not
+    arrive attached nothing, so it stays listed as not uploaded with Retry and Dismiss; it never
+    holds up a reply.
 11. One attachment operation runs at a time: attach, remove and listing share one lock
     (`_isAttaching`). A conversation read that comes while an upload, removal or listing runs
     queues its listing until that operation has ended, and attach and remove are refused while a
     listing runs, so a list answer never overwrites a later change and no listing is lost.
 12. NevaBridge holds the real list. After every conversation read, and after an attach or remove
-    whose outcome is uncertain, the chat replaces its list with what NevaBridge lists.
+    whose outcome is uncertain, the chat replaces its uploaded files with what NevaBridge lists;
+    files still uploading or not uploaded stay, because NevaBridge does not hold them.
 13. When listing fails, the list keeps what it showed, and until a listing succeeds the notice
     says the files could not be loaded, whatever else it says, with Load files again, which lists
     them without another message.

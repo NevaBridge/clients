@@ -19,8 +19,8 @@ your own native chat").
 ### Package
 
 - **`INevaBridgeIntakeConversations`** (`NevaBridge.Chat`) holds the operations the chat calls:
-  start a conversation, start a turn, read a turn's events, read the conversation, attach, list
-  and delete files, and read the tenant's features. It is separate from
+  start a conversation with a message or with files, start a turn, read a turn's events, read the
+  conversation, upload, attach, list and delete files, and read the tenant's features. It is separate from
   `INevaBridgeConversations`, so existing implementations keep compiling. A class implementing
   both shares one `AttachFileAsync` and one `GetFeaturesAsync`. Errors use
   `NevaBridgeApiException` (with the running `TurnId` where the API names one) and
@@ -30,7 +30,8 @@ your own native chat").
   file picker; without a picker there are no attachments). Its rules for turns, lost answers,
   attachments and closing are listed in [`intake-chat-state.md`](../../widgets/wpf/docs/intake-chat-state.md).
 - **`NevaBridgeIntakeChatControl`** (`NevaBridge.Wpf`) shows the transcript, the live reply,
-  the composer, Finish, Check again, the attachments list with Attach and Remove, and after the
+  the composer, Finish, Check again, the attachments list with Attach, Remove, and Retry or
+  Dismiss for a file that did not upload, and after the
   end the list of filed reports. It supplies the Windows file picker (`PickFileAsync`).
 - **Voice** is offered when the host passes an `IntakeChatVoice` (`IntakeChatOptions.Voice`) with
   an `INevaBridgeVoice`, a microphone and a speech player, and switches `Dictation` and
@@ -49,10 +50,17 @@ your own native chat").
 
 1. The first message calls `startIntakeConversation` with the reporter, the application context
    and, when known, `reporterContact`, so the assistant does not ask for contact details.
+   Files can come first, as in the NevaBridge web app: the first picked file calls
+   `startIntakeConversation` with `attachments` instead, which answers 201 with an upload address
+   per file, and the chat uploads it at once. The first message then calls `startIntakeTurn` with
+   `expectedRevision: 0`, after any upload still running has ended; a file that failed keeps
+   Retry and the reply goes without it. While the reply waits for image descriptions, the chat
+   says it is looking at the attached images (status phase `attachments`).
 2. The chat follows the turn with `getIntakeTurnEvents` (`wait=20`), showing the assistant's
    status and the reply as it is written, then reads the saved conversation on `done`.
 3. Later messages call `startIntakeTurn` with the conversation's current revision.
-4. Finish sends a fixed closing message with `finish: true`. A closed conversation takes no more
+4. Finish, offered once the first reply is saved, sends a fixed closing message with
+   `finish: true`. A closed conversation takes no more
    messages and lists each filed report's title, category, status and status reason.
 
 No `responseLanguage` or `writerModelKey` is sent: the assistant infers the reporter's language,
@@ -75,8 +83,6 @@ and the product's default writer applies.
 
 ## Known limitations / not yet implemented
 
-- Files can be attached only once the first turn is saved, because a first turn that fails
-  deletes its conversation and its files.
 - When the answer to the very first message's start is lost, the chat cannot find that
   conversation. Sending again starts a second one, and NevaBridge may still file the first after
   its idle timeout.

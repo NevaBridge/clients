@@ -234,8 +234,14 @@ noted; the chat then lists what was passed on to the team.
    It is separate from `INevaBridgeConversations`, so an implementation of that interface keeps
    compiling.
 
-3. Send a message, attach and remove a file, and press Finish in a sandbox test product. The chat
-   lists the filed reports.
+3. Attach a file before writing, then send a message, attach and remove another file, and press
+   Finish in a sandbox test product. The chat lists the filed reports.
+
+Files can be attached before the first message, as in the NevaBridge web app. The first file starts
+the conversation without a message (`StartHeldIntakeConversationAsync`) and uploads at once to the
+address NevaBridge returns (`UploadAttachmentAsync`); the first message then waits for uploads still
+running, so the reply sees the files. A file that does not upload stays listed with Retry and
+Dismiss and does not hold up the reply. Finish is offered once the first reply has arrived.
 
 The chat recovers from a lost answer the way the web chat does: a turn already running is
 followed, a message the conversation already saved is not sent again, and a reply that could not

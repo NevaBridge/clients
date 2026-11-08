@@ -109,6 +109,30 @@ public sealed class NevaBridgeClient :
             StartIntakeConversationRequestMessage(productId, reporter, request),
             cancellationToken);
 
+    public Task<HeldIntakeConversation> StartHeldIntakeConversationAsync(
+        string productId,
+        NevaBridgeReporter reporter,
+        StartHeldIntakeConversationRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        HttpRequestMessage message = CreateRequest(
+            HttpMethod.Post,
+            $"v1/products/{Uri.EscapeDataString(productId)}/intake-conversations",
+            request);
+        AddActorHeaders(message, reporter);
+        return SendAsync<HeldIntakeConversation>(message, cancellationToken);
+    }
+
+    public async Task<Attachment> UploadAttachmentAsync(
+        string conversationId,
+        AttachmentUpload upload,
+        PickedFile file,
+        CancellationToken cancellationToken = default)
+    {
+        await PutAsync(upload.UploadUrl, file, cancellationToken).ConfigureAwait(false);
+        return await SendAsync<Attachment>(ConfirmRequest(conversationId, upload.AttachmentId), cancellationToken).ConfigureAwait(false);
+    }
+
     public Task<IntakeTurnStarted> StartIntakeTurnAsync(
         string conversationId,
         StartIntakeTurnRequest request,
@@ -320,38 +344,45 @@ public sealed class NevaBridgeClient :
         admit.Headers.Add("X-Actor-Id", uploaderId);
         UploadTicket ticket = await SendAsync<UploadTicket>(admit, cancellationToken).ConfigureAwait(false);
 
-        // 2. Upload the bytes straight to storage. The address is presigned, so it gets no API key.
-        await using (Stream content = file.OpenRead())
-        {
-            using HttpRequestMessage upload = new(HttpMethod.Put, ticket.UploadUrl);
-            upload.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Any);
-            upload.Content = new StreamContent(content);
-            upload.Content.Headers.ContentLength = file.SizeBytes;
-            HttpResponseMessage uploaded;
-            try
-            {
-                uploaded = await _http.SendAsync(upload, cancellationToken).ConfigureAwait(false);
-            }
-            catch (HttpRequestException error)
-            {
-                throw new NevaBridgeUploadException(null, error);
-            }
-
-            using (uploaded)
-            {
-                if (!uploaded.IsSuccessStatusCode)
-                {
-                    throw new NevaBridgeUploadException((int)uploaded.StatusCode);
-                }
-            }
-        }
+        // 2. Upload the bytes straight to storage.
+        await PutAsync(ticket.UploadUrl, file, cancellationToken).ConfigureAwait(false);
 
         // 3. Confirm, which attaches the file to the conversation.
-        return CreateRequest(
-            HttpMethod.Post,
-            conversationPath + "/actions/confirm-attachment-upload",
-            new AttachmentCommand(ticket.AttachmentId));
+        return ConfirmRequest(conversationId, ticket.AttachmentId);
     }
+
+    /// <summary>Uploads the bytes to a presigned address, which gets no API key.</summary>
+    private async Task PutAsync(Uri uploadUrl, PickedFile file, CancellationToken cancellationToken)
+    {
+        await using Stream content = file.OpenRead();
+        using HttpRequestMessage upload = new(HttpMethod.Put, uploadUrl);
+        upload.Headers.IfNoneMatch.Add(EntityTagHeaderValue.Any);
+        upload.Content = new StreamContent(content);
+        upload.Content.Headers.ContentLength = file.SizeBytes;
+        HttpResponseMessage uploaded;
+        try
+        {
+            uploaded = await _http.SendAsync(upload, cancellationToken).ConfigureAwait(false);
+        }
+        catch (HttpRequestException error)
+        {
+            throw new NevaBridgeUploadException(null, error);
+        }
+
+        using (uploaded)
+        {
+            if (!uploaded.IsSuccessStatusCode)
+            {
+                throw new NevaBridgeUploadException((int)uploaded.StatusCode);
+            }
+        }
+    }
+
+    private HttpRequestMessage ConfirmRequest(string conversationId, string attachmentId) =>
+        CreateRequest(
+            HttpMethod.Post,
+            $"v1/conversations/{Uri.EscapeDataString(conversationId)}/actions/confirm-attachment-upload",
+            new AttachmentCommand(attachmentId));
 
     private HttpRequestMessage CreateRequest(HttpMethod method, string path, object? body)
     {

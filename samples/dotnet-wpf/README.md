@@ -109,8 +109,9 @@ dotnet run --project src\NevaBridge.Sample.DesktopApp
 The Contoso Billing window opens.
 
 - **Support assistant**: describe a problem or ask a question. The chat shows what the assistant is
-  doing and its reply as it is written. Attach a file, remove it, and press **Finish**: the chat
-  lists the reports it passed on to the team.
+  doing and its reply as it is written. Files can be attached before the first message too.
+  Attach a file, remove it, and press **Finish**: the chat lists the reports it passed on to the
+  team.
 - **Report a problem**: choose the report type (bug report, feature request or support request),
   then describe a problem. The assistant answers with a follow-up question, and a draft report
   appears under "Report so far".
@@ -188,14 +189,17 @@ agent should also read the repository's [`AGENTS.md`](../../AGENTS.md#maintainin
    changed.
 2. Implement `INevaBridgeIntakeConversations` in your API client. Copy these methods from
    `src/NevaBridge.Sample.Client/NevaBridgeClient.cs`: `StartIntakeConversationAsync`,
-   `StartIntakeTurnAsync`, `GetIntakeTurnEventsAsync` and `DeleteAttachmentAsync`, with their
-   request builders. `GetConversationAsync`, `GetFeaturesAsync` and `AttachFileAsync` already exist
+   `StartHeldIntakeConversationAsync`, `UploadAttachmentAsync`, `StartIntakeTurnAsync`,
+   `GetIntakeTurnEventsAsync` and `DeleteAttachmentAsync`, with their request builders, and the
+   `conversationId` line in `ApiErrors.cs`. `GetConversationAsync`, `GetFeaturesAsync` and `AttachFileAsync` already exist
    in a client built from this example and serve both interfaces. If your client calls your own
    backend, add the same operations there:
 
    | Operation                      | Request                                                                           |
    | ------------------------------ | --------------------------------------------------------------------------------- |
    | `StartIntakeConversationAsync` | `POST /v1/products/{productId}/intake-conversations` with the `X-Actor-*` headers |
+   | `StartHeldIntakeConversationAsync` | `POST /v1/products/{productId}/intake-conversations` with `attachments` and the `X-Actor-*` headers |
+   | `UploadAttachmentAsync`        | `PUT` to the returned `uploadUrl`, then `POST /v1/conversations/{conversationId}/actions/confirm-attachment-upload` |
    | `StartIntakeTurnAsync`         | `POST /v1/intake-conversations/{conversationId}/turns`                            |
    | `GetIntakeTurnEventsAsync`     | `GET /v1/intake-turns/{turnId}/events?after={cursor}&wait=20`                     |
    | `GetConversationAsync`         | `GET /v1/conversations/{conversationId}`                                          |
@@ -208,8 +212,8 @@ agent should also read the repository's [`AGENTS.md`](../../AGENTS.md#maintainin
    the view model when the window closes.
 4. Add an entry for it next to your existing one, and, if you want switches, copy
    `SampleFeatures.cs`, `NevaBridgeFeatureSwitches.cs` and `nevabridge-features.json`.
-5. Test against a sandbox product: send a few messages, attach and remove a file, press Finish,
-   and check the filed reports in NevaBridge.
+5. Test against a sandbox product: attach a file before writing, send a few messages, attach and
+   remove a file, press Finish, and check the filed reports in NevaBridge.
 
 Known limitation: if the answer to the very first message's start is lost on the network, the chat
 cannot find that conversation again, and sending the message again starts a second one.

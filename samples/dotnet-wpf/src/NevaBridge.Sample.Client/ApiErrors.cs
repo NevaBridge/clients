@@ -21,6 +21,7 @@ internal static class ApiErrors
                     return new NevaBridgeApiException(statusCode, errorName, ReadString(root, "category"), message ?? errorName)
                     {
                         TurnId = ReadString(root, "turnId"),
+                        ConversationId = ReadString(root, "conversationId"),
                     };
                 }
 

@@ -437,7 +437,6 @@ public sealed class IntakeChatViewModelTests
             .Answer("deleteAttachment", new object());
         IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions { PickFile = () => Task.FromResult<PickedFile?>(file) });
         Assert.True(chat.OffersAttachments);
-        Assert.False(chat.CanAttach);
         Send(chat, "It crashes.");
 
         // When

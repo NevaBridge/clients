@@ -89,6 +89,10 @@ public sealed class FakeIntakeConversations : INevaBridgeIntakeConversations
     public static NevaBridgeApiException ApiError(int status, string name, string? turnId = null) =>
         new(status, name, null, name) { TurnId = turnId };
 
+    /// <summary>A conversation started without a message, holding one file.</summary>
+    public static HeldIntakeConversation Held(string fileName, string attachmentId = "attachment-1") =>
+        new(ConversationId, [new AttachmentUpload(attachmentId, fileName, new Uri("https://uploads.example.com/" + attachmentId), DateTimeOffset.UnixEpoch)]);
+
     public static NevaBridgeApiException EdgeFailure() => new(504, null, null, "Endpoint request timed out");
 
     public Task<IntakeConversationStarted> StartIntakeConversationAsync(
@@ -97,6 +101,20 @@ public sealed class FakeIntakeConversations : INevaBridgeIntakeConversations
         StartIntakeConversationRequest request,
         CancellationToken cancellationToken = default) =>
         Next<IntakeConversationStarted>("startIntakeConversation", ("productId", productId), ("reporter", reporter), ("request", request));
+
+    public Task<HeldIntakeConversation> StartHeldIntakeConversationAsync(
+        string productId,
+        NevaBridgeReporter reporter,
+        StartHeldIntakeConversationRequest request,
+        CancellationToken cancellationToken = default) =>
+        Next<HeldIntakeConversation>("startHeldIntakeConversation", ("productId", productId), ("reporter", reporter), ("request", request));
+
+    public Task<Attachment> UploadAttachmentAsync(
+        string conversationId,
+        AttachmentUpload upload,
+        PickedFile file,
+        CancellationToken cancellationToken = default) =>
+        Next<Attachment>("uploadAttachment", ("conversationId", conversationId), ("upload", upload), ("file", file));
 
     public Task<IntakeTurnStarted> StartIntakeTurnAsync(
         string conversationId,
