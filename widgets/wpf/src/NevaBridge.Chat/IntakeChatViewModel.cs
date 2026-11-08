@@ -16,7 +16,7 @@ public enum AttachmentState
     /// <summary>NevaBridge holds the file; it can be removed.</summary>
     Uploaded,
 
-    /// <summary>The bytes did not arrive, so nothing was attached; it can be retried or dismissed.</summary>
+    /// <summary>Storage refused the bytes, so nothing was attached; it can be retried or dismissed.</summary>
     Failed,
 }
 
@@ -603,8 +603,8 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     // 2. A 403 from any attachment call means staff switched attachments off: the chat stops
     //    offering them.
     // 3. After an action whose outcome is uncertain, the chat lists what NevaBridge holds; when
-    //    that fails too, FilesUnknown says so and RefreshFilesCommand tries again. An upload whose
-    //    bytes did not arrive attached nothing, so its file stays listed for Retry instead.
+    //    that fails too, FilesUnknown says so and RefreshFilesCommand tries again. An upload that
+    //    storage refused attached nothing, so its file stays listed for Retry instead.
     // 4. Closing the window ends any of them quietly.
 
     private Task AttachAsync()
@@ -732,9 +732,9 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         {
             Replace(row, Uploaded(await upload()));
         }
-        catch (NevaBridgeUploadException error)
+        catch (NevaBridgeUploadException error) when (IsRefusedByStorage(error))
         {
-            // The bytes did not arrive, so nothing was attached: the file stays for Retry.
+            // Storage refused the bytes, so nothing was attached: the file stays for Retry.
             Replace(row, Failed(file));
             AttachmentNotice = ChatErrors.Describe(error);
         }
@@ -750,6 +750,14 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
             throw;
         }
     }
+
+    /// <summary>
+    /// Storage answered and did not take the bytes. Without an answer the bytes may have arrived,
+    /// and 412 means storage already holds them (the upload is sent with If-None-Match: *); a file
+    /// whose bytes arrived is attached by NevaBridge even unconfirmed, so those cases are settled by
+    /// listing, never by Retry.
+    /// </summary>
+    private static bool IsRefusedByStorage(NevaBridgeUploadException error) => error.StatusCode is { } status && status != 412;
 
     private void HoldConversation(string conversationId)
     {

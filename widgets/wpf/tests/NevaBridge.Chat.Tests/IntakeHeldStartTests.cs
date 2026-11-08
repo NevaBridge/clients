@@ -201,7 +201,7 @@ public sealed class IntakeHeldStartTests
         // Given
         FakeIntakeConversations nevaBridge = new FakeIntakeConversations()
             .Answer("startHeldIntakeConversation", Held("crash.log"))
-            .Answer("uploadAttachment", new NevaBridgeUploadException(null))
+            .Answer("uploadAttachment", new NevaBridgeUploadException(503))
             .Answer("attachFile", LogAttached);
         IntakeChatViewModel chat = Chat(nevaBridge, Log);
         chat.AttachCommand.Execute(null);
@@ -216,6 +216,53 @@ public sealed class IntakeHeldStartTests
         AttachmentItem item = Assert.Single(chat.Attachments);
         Assert.Equal(AttachmentState.Uploaded, item.State);
         Assert.Equal(LogAttached, item.Attachment);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(412)]
+    public void An_upload_whose_outcome_is_unknown_shows_the_files_NevaBridge_holds_instead_of_offering_retry(int? status)
+    {
+        // Given: storage may have taken the bytes although its answer was lost, or already holds them
+        FakeIntakeConversations nevaBridge = new FakeIntakeConversations()
+            .Answer("startHeldIntakeConversation", Held("crash.log"))
+            .Answer("uploadAttachment", new NevaBridgeUploadException(status))
+            .Answer("listAttachments", (IReadOnlyList<Attachment>)[LogAttached]);
+        IntakeChatViewModel chat = Chat(nevaBridge, Log);
+
+        // When
+        chat.AttachCommand.Execute(null);
+
+        // Then
+        Assert.Contains("listAttachments", nevaBridge.Operations);
+        AttachmentItem item = Assert.Single(chat.Attachments);
+        Assert.Equal(AttachmentState.Uploaded, item.State);
+        Assert.Equal(LogAttached, item.Attachment);
+    }
+
+    [Fact]
+    public async Task Send_while_the_first_file_starts_the_conversation_waits_and_uses_that_conversation()
+    {
+        // Given
+        TaskCompletionSource<HeldIntakeConversation> start = new();
+        FakeIntakeConversations nevaBridge = AnswersFirstMessage(
+            new FakeIntakeConversations()
+                .Answer("startHeldIntakeConversation", start.Task)
+                .Answer("uploadAttachment", LogAttached),
+            LogAttached);
+        IntakeChatViewModel chat = Chat(nevaBridge, Log);
+        Task attaching = chat.AttachCommand.ExecuteAsync();
+
+        // When
+        chat.Draft = "It crashes.";
+        Task sending = chat.SendCommand.ExecuteAsync();
+        start.SetResult(Held("crash.log"));
+        await attaching;
+        await sending;
+
+        // Then
+        Assert.DoesNotContain("startIntakeConversation", nevaBridge.Operations);
+        Assert.Equal(new StartIntakeTurnRequest("It crashes.", 0), nevaBridge.Calls.Single(c => c.Operation == "startIntakeTurn").Arguments["request"]);
     }
 
     [Fact]

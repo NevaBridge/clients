@@ -29,7 +29,8 @@ public interface INevaBridgeIntakeConversations
 
     /// <summary>
     /// Uploads a file to an address NevaBridge already issued and confirms it. Fails with
-    /// <see cref="NevaBridgeUploadException"/> when the bytes did not arrive, so nothing was attached.
+    /// <see cref="NevaBridgeUploadException"/> when the upload failed: with the status storage
+    /// answered, or with none when no answer arrived, in which case the bytes may still have arrived.
     /// </summary>
     Task<Attachment> UploadAttachmentAsync(
         string conversationId,
