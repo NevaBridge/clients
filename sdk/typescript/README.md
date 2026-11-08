@@ -163,7 +163,7 @@ The SDK has no inactivity setting, no timer, and no automatic submit function.
 
 ## Attach files
 
-A reporter can attach screenshots, screen recordings and logs for the engineer who handles the report. The assistant never reads them. Attachments need the chat attachments feature. Without it, every attachment method fails with status 403, and the message names the feature. Ask NevaBridge to enable it for your tenant.
+A reporter can attach screenshots, screen recordings and logs for the engineer who handles the report. In a classic conversation the assistant never reads them; in Generic Intake it may read text files and image descriptions, depending on your tenant's features. Attachments need the chat attachments feature. Without it, every attachment method fails with status 403, and the message names the feature. Ask NevaBridge to enable it for your tenant.
 
 Uploading a file takes three steps. The SDK makes the two API calls, and your code sends the bytes to storage:
 
@@ -204,6 +204,68 @@ Files can be added and deleted until the conversation's report is submitted. Aft
 
 `listAttachments` returns the confirmed files. `requestAttachmentDownloadUrl` returns a URL that serves one file for 5 minutes, with a content type NevaBridge chooses from the extension. `deleteAttachment` removes a file, and deleting a file that is already gone succeeds.
 
+### Attach files before the first message
+
+In Generic Intake a reporter can pick files before writing, so the first reply already sees them. `startHeldIntakeConversation` starts the conversation without a message and returns an upload per file, in request order. Upload and confirm each one as above, then send the first message as a turn at revision 0:
+
+```typescript
+const held = await client.startHeldIntakeConversation({
+  productId,
+  actorId: "user-4821",
+  request: {
+    attachments: [{fileName: "console.log", sizeBytes: bytes.byteLength}],
+  },
+});
+
+for (const upload of held.attachments) {
+  // PUT the file's bytes to upload.uploadUrl with "If-None-Match: *", as above, then:
+  await client.confirmAttachmentUpload({
+    conversationId: held.conversationId,
+    attachmentId: upload.attachmentId,
+  });
+}
+
+const {turnId} = await client.startIntakeTurn({
+  conversationId: held.conversationId,
+  request: {
+    content: "The app freezes when I save, see the log.",
+    expectedRevision: 0,
+  },
+});
+```
+
+- Files are admitted all or nothing. When one is refused, nothing is created and the error names the file.
+- Further files take `requestAttachmentUpload` on the conversation, and `deleteAttachment` removes one.
+- `writerModelKey` and `responseLanguage` travel with the first message, not with the start.
+- Finishing before the first message fails with status 400 and `NothingToFinish`.
+- A failed first turn keeps the conversation and its files; send the message again.
+- Status 424 whose error `detail` carries a `conversationId` means the conversation exists but its upload URLs could not be signed. Request each upload again with `requestAttachmentUpload` on that conversation.
+- NevaBridge deletes a conversation that has no reply 24 hours after it was created, with its files.
+- While the first reply waits for image descriptions, its turn reports the status phase `attachments`.
+
+## Voice
+
+Voice needs the voice features: `createTranscriptionSession` needs `voiceDictation` or `voiceConversation`, and `synthesizeSpeech` needs `voiceConversation`. Without them both fail with status 403. Read `getFeatures` to decide which controls to offer.
+
+```typescript
+const session = await client.createTranscriptionSession({
+  languageCode: "de-DE",
+});
+// Stream 16-bit mono PCM at session.sampleRate to session.url over a WebSocket,
+// framed as AWS event-stream AudioEvent messages, and read TranscriptEvent messages back.
+
+const speech = await client.synthesizeSpeech({
+  text: "Wann tritt der Fehler auf?",
+  languageCode: "de-DE",
+});
+const audio = Buffer.from(speech.audioBase64, "base64"); // MP3
+```
+
+- The session URL is presigned and is a credential: keep it out of logs and hand it only to the device that streams the audio.
+- Open it before `expiresAt`. Each session is charged up front for `maxDurationSeconds` (60) of listening. To keep listening, request the next session a few seconds before the time runs out.
+- The languages are `en-US` and `de-DE` (`VoiceLanguageCode`).
+- Amazon Transcribe describes the streaming protocol: https://docs.aws.amazon.com/transcribe/latest/dg/streaming-websocket.html
+
 ## Supported operations
 
 - `startConversation`
@@ -219,7 +281,10 @@ Files can be added and deleted until the conversation's report is submitted. Aft
 - `startIntakeConversation`
 - `startIntakeTurn`
 - `getIntakeTurnEvents`
+- `startHeldIntakeConversation`
 - `listIntakeConversations`
 - `getFeatures`
+- `createTranscriptionSession`
+- `synthesizeSpeech`
 
 `waitForIntakeTurn` and `intakeTurnRunningId` build on these operations. The supported public contract includes only these operations.

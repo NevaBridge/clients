@@ -4,6 +4,10 @@
 
 ### Added
 
+- `startHeldIntakeConversation` starts a Generic Intake conversation with the files the reporter picked before
+  writing, and returns an upload per file. The first message follows with `startIntakeTurn` at `expectedRevision` 0.
+- `createTranscriptionSession` and `synthesizeSpeech`, the voice operations, with `VoiceLanguageCode` and the
+  `TranscriptionSession` and `SpeechSynthesis` types. `client.json` offers all three as well.
 - `fetch` in the client configuration sends every request through the given implementation.
 - `client.json` offers every operation that answers with a body and resolves to the API's JSON, unchanged, for
   code that relays NevaBridge answers.
@@ -11,9 +15,8 @@
 ### Changed
 
 - The vendored contract moves to the revision with the voice operations and with Generic Intake starts that hold
-  attachments before the first message. This SDK revision adds no methods for either. `startIntakeConversation`
-  still reads the answer to a start with `userMessage`; read the answer to a start with `attachments` through
-  `json.startIntakeConversation`.
+  attachments before the first message. `startIntakeConversation` still reads the answer to a start with
+  `userMessage`; a start with `attachments` takes `startHeldIntakeConversation`.
 - `X-Actor-Name` carries a display name of printable ASCII without `%` as it is. Other names stay percent-encoded.
   NevaBridge decodes both, so the stored name does not change.
 

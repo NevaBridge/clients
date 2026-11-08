@@ -2,6 +2,7 @@ import {AttachmentsApi} from "./generated/apis/AttachmentsApi.js";
 import {ConversationsApi} from "./generated/apis/ConversationsApi.js";
 import {FeaturesApi} from "./generated/apis/FeaturesApi.js";
 import {ReportsApi} from "./generated/apis/ReportsApi.js";
+import {VoiceApi} from "./generated/apis/VoiceApi.js";
 import type {AppendMessageRequest} from "./generated/models/AppendMessageRequest.js";
 import type {ActorRole} from "./generated/models/ActorRole.js";
 import type {Attachment} from "./generated/models/Attachment.js";
@@ -11,6 +12,7 @@ import type {ConversationDetail} from "./generated/models/ConversationDetail.js"
 import type {ConversationSummary} from "./generated/models/ConversationSummary.js";
 import type {ConversationTurn} from "./generated/models/ConversationTurn.js";
 import type {Features} from "./generated/models/Features.js";
+import type {IntakeConversationHeld} from "./generated/models/IntakeConversationHeld.js";
 import type {IntakeConversationList} from "./generated/models/IntakeConversationList.js";
 import {
   IntakeConversationStartedFromJSON,
@@ -22,7 +24,10 @@ import type {RequestAttachmentUploadResponse} from "./generated/models/RequestAt
 import type {StartConversationRequest} from "./generated/models/StartConversationRequest.js";
 import type {StartIntakeConversationRequest} from "./generated/models/StartIntakeConversationRequest.js";
 import type {StartIntakeTurnRequest} from "./generated/models/StartIntakeTurnRequest.js";
+import type {SpeechSynthesis} from "./generated/models/SpeechSynthesis.js";
 import type {SubmitReportResult} from "./generated/models/SubmitReportResult.js";
+import type {TranscriptionSession} from "./generated/models/TranscriptionSession.js";
+import type {VoiceLanguageCode} from "./generated/models/VoiceLanguageCode.js";
 import {
   Configuration,
   FetchError,
@@ -72,6 +77,9 @@ export interface NevaBridgeJsonOperations {
   startIntakeConversation(
     options: StartIntakeConversationOptions,
   ): Promise<JsonValue>;
+  startHeldIntakeConversation(
+    options: StartHeldIntakeConversationOptions,
+  ): Promise<JsonValue>;
   startIntakeTurn(options: StartIntakeTurnOptions): Promise<JsonValue>;
   getIntakeTurnEvents(options: GetIntakeTurnEventsOptions): Promise<JsonValue>;
   listIntakeConversations(
@@ -85,6 +93,10 @@ export interface NevaBridgeJsonOperations {
   ): Promise<JsonValue>;
   confirmAttachmentUpload(options: AttachmentOptions): Promise<JsonValue>;
   requestAttachmentDownloadUrl(options: AttachmentOptions): Promise<JsonValue>;
+  createTranscriptionSession(
+    options: CreateTranscriptionSessionOptions,
+  ): Promise<JsonValue>;
+  synthesizeSpeech(options: SynthesizeSpeechOptions): Promise<JsonValue>;
 }
 
 export interface StartConversationOptions {
@@ -143,6 +155,38 @@ export interface StartIntakeConversationOptions {
   readonly actorName?: string;
   readonly actorRoles?: ActorRole[];
   readonly request: StartIntakeConversationRequest;
+  readonly signal?: AbortSignal;
+}
+
+/**
+ * A Generic Intake start that holds the files the reporter picked before
+ * writing. The first message follows as a turn with `expectedRevision` 0, and
+ * it carries `writerModelKey` and `responseLanguage`.
+ */
+export interface StartHeldIntakeConversationRequest {
+  /** One to ten files, admitted all or nothing; the answer lists their uploads in this order. */
+  readonly attachments: RequestAttachmentUploadRequest[];
+  readonly applicationContext?: StartIntakeConversationRequest["applicationContext"];
+  readonly reporterContact?: StartIntakeConversationRequest["reporterContact"];
+}
+
+export interface StartHeldIntakeConversationOptions {
+  readonly productId: string;
+  readonly actorId: string;
+  readonly actorName?: string;
+  readonly actorRoles?: ActorRole[];
+  readonly request: StartHeldIntakeConversationRequest;
+  readonly signal?: AbortSignal;
+}
+
+export interface CreateTranscriptionSessionOptions {
+  readonly languageCode: VoiceLanguageCode;
+  readonly signal?: AbortSignal;
+}
+
+export interface SynthesizeSpeechOptions {
+  readonly text: string;
+  readonly languageCode: VoiceLanguageCode;
   readonly signal?: AbortSignal;
 }
 
@@ -309,6 +353,7 @@ export class NevaBridgeClient {
   private readonly conversationsApi: ConversationsApi;
   private readonly featuresApi: FeaturesApi;
   private readonly reportsApi: ReportsApi;
+  private readonly voiceApi: VoiceApi;
 
   public constructor(configuration: NevaBridgeClientConfiguration) {
     const generatedConfiguration = new Configuration({
@@ -320,6 +365,7 @@ export class NevaBridgeClient {
     this.conversationsApi = new ConversationsApi(generatedConfiguration);
     this.featuresApi = new FeaturesApi(generatedConfiguration);
     this.reportsApi = new ReportsApi(generatedConfiguration);
+    this.voiceApi = new VoiceApi(generatedConfiguration);
 
     const json = <Options>(
       send: (options: Options) => Promise<ApiResponse<unknown>>,
@@ -334,6 +380,9 @@ export class NevaBridgeClient {
       appendMessage: json((options) => this.sendAppendMessage(options)),
       startIntakeConversation: json((options) =>
         this.sendStartIntakeConversation(options),
+      ),
+      startHeldIntakeConversation: json((options) =>
+        this.sendStartHeldIntakeConversation(options),
       ),
       startIntakeTurn: json((options) => this.sendStartIntakeTurn(options)),
       getIntakeTurnEvents: json((options) =>
@@ -356,6 +405,10 @@ export class NevaBridgeClient {
       requestAttachmentDownloadUrl: json((options) =>
         this.sendRequestAttachmentDownloadUrl(options),
       ),
+      createTranscriptionSession: json((options) =>
+        this.sendCreateTranscriptionSession(options),
+      ),
+      synthesizeSpeech: json((options) => this.sendSynthesizeSpeech(options)),
     };
   }
 
@@ -386,14 +439,34 @@ export class NevaBridgeClient {
   /**
    * Starts a Generic Intake conversation with `userMessage` and its first
    * turn, which runs in the background. Follow the turn with
-   * waitForIntakeTurn or getIntakeTurnEvents. A start with `attachments`
-   * answers with the held conversation instead; read that answer with
-   * `json.startIntakeConversation`.
+   * waitForIntakeTurn or getIntakeTurnEvents. To attach files before the
+   * first message, use startHeldIntakeConversation.
    */
   public async startIntakeConversation(
     options: StartIntakeConversationOptions,
   ): Promise<IntakeConversationStarted> {
     return await this.typed(() => this.sendStartIntakeConversation(options));
+  }
+
+  /**
+   * Starts a Generic Intake conversation without a message, holding the files
+   * the reporter picked before writing, so the first reply already sees them.
+   * Resolves with an upload per file in request order: PUT each file to its
+   * `uploadUrl` with `If-None-Match: *` and confirm it with
+   * confirmAttachmentUpload. Then send the first message with startIntakeTurn
+   * and `expectedRevision` 0; finishing before that answers 400
+   * `NothingToFinish`. Requires `genericIntake` and `chatAttachments`. A 424
+   * whose detail carries a `conversationId` means the conversation exists but
+   * its uploads could not be signed: request each upload again for it with
+   * requestAttachmentUpload. NevaBridge deletes a conversation that has no
+   * reply 24 hours after it was created, with its files.
+   */
+  public async startHeldIntakeConversation(
+    options: StartHeldIntakeConversationOptions,
+  ): Promise<IntakeConversationHeld> {
+    return await this.typed(() =>
+      this.sendStartHeldIntakeConversation(options),
+    );
   }
 
   /**
@@ -523,6 +596,24 @@ export class NevaBridgeClient {
     );
   }
 
+  /**
+   * Returns a presigned Amazon Transcribe streaming address for one language
+   * and one paid session of `maxDurationSeconds`. The address is a credential:
+   * keep it out of logs. Requires `voiceDictation` or `voiceConversation`.
+   */
+  public async createTranscriptionSession(
+    options: CreateTranscriptionSessionOptions,
+  ): Promise<TranscriptionSession> {
+    return await this.typed(() => this.sendCreateTranscriptionSession(options));
+  }
+
+  /** Speaks a text as MP3 audio, base64-encoded. Requires `voiceConversation`. */
+  public async synthesizeSpeech(
+    options: SynthesizeSpeechOptions,
+  ): Promise<SpeechSynthesis> {
+    return await this.typed(() => this.sendSynthesizeSpeech(options));
+  }
+
   public async deleteAttachment(options: AttachmentOptions): Promise<void> {
     await this.request(() =>
       this.attachmentsApi.deleteAttachment(
@@ -596,6 +687,49 @@ export class NevaBridgeClient {
     // The generator types only the 201 answer to a start with attachments; a
     // start with userMessage answers 202 with its turn id.
     return new JSONApiResponse(response.raw, IntakeConversationStartedFromJSON);
+  }
+
+  private sendStartHeldIntakeConversation(
+    options: StartHeldIntakeConversationOptions,
+  ): Promise<ApiResponse<IntakeConversationHeld>> {
+    // The generator types the 201 answer, which only a start with attachments gives.
+    return this.conversationsApi.startIntakeConversationRaw(
+      {
+        productId: options.productId,
+        xActorId: options.actorId,
+        xActorName: actorNameHeader(options.actorName),
+        xActorRoles: options.actorRoles,
+        startIntakeConversationRequest: {
+          attachments: options.request.attachments,
+          applicationContext: options.request.applicationContext,
+          reporterContact: options.request.reporterContact,
+        },
+      },
+      {signal: options.signal},
+    );
+  }
+
+  private sendCreateTranscriptionSession(
+    options: CreateTranscriptionSessionOptions,
+  ): Promise<ApiResponse<TranscriptionSession>> {
+    return this.voiceApi.createTranscriptionSessionRaw(
+      {transcriptionSessionCreateRequest: {languageCode: options.languageCode}},
+      {signal: options.signal},
+    );
+  }
+
+  private sendSynthesizeSpeech(
+    options: SynthesizeSpeechOptions,
+  ): Promise<ApiResponse<SpeechSynthesis>> {
+    return this.voiceApi.synthesizeSpeechRaw(
+      {
+        speechSynthesisCreateRequest: {
+          text: options.text,
+          languageCode: options.languageCode,
+        },
+      },
+      {signal: options.signal},
+    );
   }
 
   private sendStartIntakeTurn(

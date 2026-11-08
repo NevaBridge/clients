@@ -25,10 +25,13 @@ Consumers call a small handwritten client and never touch generated code or inte
 - `startIntakeConversation`
 - `startIntakeTurn`
 - `getIntakeTurnEvents`
+- `startHeldIntakeConversation`
 - `listIntakeConversations`
 - `getFeatures`
+- `createTranscriptionSession`
+- `synthesizeSpeech`
 
-These fifteen are the whole supported public API. Two functions build on them: `waitForIntakeTurn` follows a
+These eighteen are the whole supported public API. Two functions build on them: `waitForIntakeTurn` follows a
 Generic Intake turn to its end, and `intakeTurnRunningId` reads the running turn from a refused turn start.
 
 ## Authentication and endpoint

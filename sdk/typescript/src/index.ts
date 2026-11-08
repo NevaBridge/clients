@@ -6,6 +6,7 @@ export {
 export type {
   AppendMessageOptions,
   AttachmentOptions,
+  CreateTranscriptionSessionOptions,
   FetchFunction,
   GetConversationOptions,
   GetFeaturesOptions,
@@ -19,9 +20,12 @@ export type {
   NevaBridgeJsonOperations,
   RequestAttachmentUploadOptions,
   StartConversationOptions,
+  StartHeldIntakeConversationOptions,
+  StartHeldIntakeConversationRequest,
   StartIntakeConversationOptions,
   StartIntakeTurnOptions,
   SubmitReportOptions,
+  SynthesizeSpeechOptions,
   WaitForIntakeTurnOptions,
 } from "./nevabridge-client.js";
 export type {
@@ -41,6 +45,9 @@ export type {ConversationSummary} from "./generated/models/ConversationSummary.j
 export type {ConversationTurn} from "./generated/models/ConversationTurn.js";
 export type {EdgeError} from "./generated/models/EdgeError.js";
 export type {Features} from "./generated/models/Features.js";
+export type {HeldUploadFailureError} from "./generated/models/HeldUploadFailureError.js";
+export type {IntakeConversationHeld} from "./generated/models/IntakeConversationHeld.js";
+export type {IntakeConversationHeldAttachment} from "./generated/models/IntakeConversationHeldAttachment.js";
 export type {IntakeConversationList} from "./generated/models/IntakeConversationList.js";
 export type {IntakeConversationStarted} from "./generated/models/IntakeConversationStarted.js";
 export type {IntakeTurnDoneEvent} from "./generated/models/IntakeTurnDoneEvent.js";
@@ -62,7 +69,9 @@ export type {StartConversationRequest} from "./generated/models/StartConversatio
 export type {StartIntakeConversationRequest} from "./generated/models/StartIntakeConversationRequest.js";
 export type {StartIntakeTurnRequest} from "./generated/models/StartIntakeTurnRequest.js";
 export type {StorageAllowanceExceededError} from "./generated/models/StorageAllowanceExceededError.js";
+export type {SpeechSynthesis} from "./generated/models/SpeechSynthesis.js";
 export type {SubmitReportResult} from "./generated/models/SubmitReportResult.js";
+export type {TranscriptionSession} from "./generated/models/TranscriptionSession.js";
 
 export {AttachmentKind} from "./generated/models/AttachmentKind.js";
 export type {AttachmentKind as AttachmentKindValue} from "./generated/models/AttachmentKind.js";
@@ -86,5 +95,7 @@ export {ReportStatus} from "./generated/models/ReportStatus.js";
 export type {ReportStatus as ReportStatusValue} from "./generated/models/ReportStatus.js";
 export {ReportStatusReason} from "./generated/models/ReportStatusReason.js";
 export type {ReportStatusReason as ReportStatusReasonValue} from "./generated/models/ReportStatusReason.js";
+export {VoiceLanguageCode} from "./generated/models/VoiceLanguageCode.js";
+export type {VoiceLanguageCode as VoiceLanguageCodeValue} from "./generated/models/VoiceLanguageCode.js";
 export {ReporterRole} from "./generated/models/ReporterRole.js";
 export type {ReporterRole as ReporterRoleValue} from "./generated/models/ReporterRole.js";
