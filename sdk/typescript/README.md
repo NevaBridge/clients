@@ -146,7 +146,9 @@ Statuses 502 and 504 come from the API gateway, not from NevaBridge. Their body 
 
 Call `submitReport` when the user says they are finished. Do not build an inactivity timer or an automatic submit that retries. NevaBridge finalizes an in-progress machine-to-machine conversation itself after 60 minutes without a turn. The server checks for these every 10 minutes, so finalization usually happens 60 to 70 minutes after the last turn.
 
-Every successful turn restarts the 60-minute window. A manual submit cancels it. An abandoned conversation goes through the same finalization and connector delivery as a submitted one. When you read an automatically finalized report, it has `submissionOrigin: "auto_abandoned"`. The assistant can also submit a report during a turn when it judges the report complete. That report has `submissionOrigin: "auto_assistant"`. The server currently finalizes only the first in-progress report this way. Conversations authenticated as staff are never finalized automatically.
+Every successful turn restarts the 60-minute window. A manual submit cancels it. An abandoned conversation goes through the same finalization and connector delivery as a submitted one. When you read an automatically finalized report, it has `submissionOrigin: "auto_abandoned"`. The server currently finalizes only the first in-progress report this way. Conversations authenticated as staff are never finalized automatically.
+
+Separately, the assistant can submit a report during a turn when it judges the report complete. That report has `submissionOrigin: "auto_assistant"`.
 
 ```typescript
 for (const report of turn.reports) {

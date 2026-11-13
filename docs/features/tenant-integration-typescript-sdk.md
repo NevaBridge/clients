@@ -113,9 +113,9 @@ They must not build an inactivity timer or an automatic submit that retries.
 NevaBridge finalizes abandoned conversations itself.
 Every successful turn restarts a 60-minute window, and a sweep runs every 10 minutes, so finalization usually happens 60 to 70 minutes after the last turn.
 A manual submit cancels the window. An abandoned conversation goes through the same finalization and connector delivery as a submitted one, and its report records `submissionOrigin: "auto_abandoned"`.
-The assistant can also submit a report during a turn when it judges it complete, which records `submissionOrigin: "auto_assistant"`.
-
 The server currently finalizes only the first in-progress report this way, and never finalizes conversations authenticated as staff.
+
+Separately, the assistant can submit a report during a turn when it judges it complete, which records `submissionOrigin: "auto_assistant"`.
 
 ## Known limitations and missing features
 
