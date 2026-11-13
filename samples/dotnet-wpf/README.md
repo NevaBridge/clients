@@ -162,7 +162,7 @@ Everything you do in your own application is in one file per step, in
 | In your application you...               | Example file                                                                                       |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | Provide the NevaBridge settings          | `NevaBridgeSettingsSource.cs`                                                                      |
-| Tell NevaBridge who is reporting         | `CurrentReporter.cs`                                                                               |
+| Tell NevaBridge who is reporting, and which knowledge it may use for them | `CurrentReporter.cs` |
 | Decide which chats and features to offer | `NevaBridgeFeatureSwitches.cs`, `nevabridge-features.json`                                         |
 | Open a native chat or the web chat       | `NevaBridgeIntegration.cs`, used by `IntakeChatWindow`, `SupportWindow` and `NevaBridgeChatWindow` |
 | Explain why the chat cannot open         | `ChatErrors.cs`                                                                                    |

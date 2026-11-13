@@ -52,6 +52,12 @@ classic chat, which is unchanged.
 - `StartIntakeConversationRequest`, `StartIntakeTurnRequest`, `NevaBridgeApiException.TurnId` and
   `NevaBridgeUploadException`.
 
+### Changed
+
+- The WPF example sends knowledge roles for its reporter (`anonymous` and `customer`), and the
+  example and the integration guide explain how to choose them. Before, the example sent none, so
+  an application built from it gave the assistant public documents at best.
+
 ### Breaking changes
 
 - `AttachmentItem` carries a `State` (`Uploading`, `Uploaded`, `Failed`) with `RetryCommand` and

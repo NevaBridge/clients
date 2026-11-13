@@ -155,7 +155,10 @@ Remote API and page addresses must use HTTPS; plain HTTP is accepted only on loo
 Use your application's identity, with a stable ASCII reporter id:
 
 ```csharp
-NevaBridgeReporter reporter = new(Id: currentUser.Id, DisplayName: currentUser.Name);
+NevaBridgeReporter reporter = new(
+    Id: currentUser.Id,
+    DisplayName: currentUser.Name,
+    Roles: ["anonymous", "customer"]);
 IReadOnlyDictionary<string, string> applicationContext = new Dictionary<string, string>
 {
     ["application"] = "Your application",
@@ -164,8 +167,11 @@ IReadOnlyDictionary<string, string> applicationContext = new Dictionary<string, 
 };
 ```
 
-The context is stored with the report. Optional roles (`anonymous`, `customer`, `tenant`) select
-which knowledge audiences the assistant may use.
+The context is stored with the report. Roles select which knowledge-base documents the assistant
+may use to answer this reporter. Send every role that applies, because roles do not imply one
+another: `anonymous` for documents marked public, `customer` for documents for your customers,
+`tenant` for all documents, including internal ones. An application only your own staff use sends
+`tenant`. Without roles the assistant uses only public documents.
 
 ## 1. Native WPF chat
 

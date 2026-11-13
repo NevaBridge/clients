@@ -9,12 +9,20 @@ namespace NevaBridge.Sample.DesktopApp;
 internal static class CurrentReporter
 {
     /// <remarks>
-    /// The id becomes the report's reporterId, so keep it stable and ASCII. Roles (anonymous,
-    /// customer, tenant) select which knowledge-base documents the assistant may use; this example
-    /// sends none.
+    /// The id becomes the report's reporterId, so keep it stable and ASCII.
     /// </remarks>
     public static NevaBridgeReporter Get() =>
-        new(Id: WindowsIdentity.GetCurrent().Name, DisplayName: Environment.UserName);
+        new(Id: WindowsIdentity.GetCurrent().Name, DisplayName: Environment.UserName, Roles: KnowledgeRoles);
+
+    /// <summary>
+    /// Which knowledge-base documents the assistant may use to answer this reporter. Send every
+    /// role that applies, because roles do not imply one another: "anonymous" for documents marked
+    /// public, "customer" for documents for your customers, "tenant" for all documents, including
+    /// internal ones. An application only your own staff use sends "tenant". Without roles the
+    /// assistant uses only public documents. This example stands in for an application your
+    /// customers use.
+    /// </summary>
+    private static readonly string[] KnowledgeRoles = ["anonymous", "customer"];
 
     /// <summary>
     /// How your team can reach the reporter, if your application knows it. The Generic Intake
