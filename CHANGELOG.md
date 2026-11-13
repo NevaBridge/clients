@@ -10,6 +10,14 @@ every addition and breaking change:
 Entries are dated by the day they reached `main`. To upgrade, read every entry since the revision
 you last took.
 
+## 2026-11-13
+
+### TypeScript SDK
+
+- **`applicationContext` now has a meaning**: Generic Intake files the `environment` key as the
+  reporter's environment instead of asking, and reads the whole map as facts about where the
+  reporter works. Documentation only; the wire types are unchanged.
+
 ## 2026-11-08
 
 ### WPF

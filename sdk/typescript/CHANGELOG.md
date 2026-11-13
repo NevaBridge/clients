@@ -14,6 +14,10 @@
 
 ### Changed
 
+- The vendored contract moves to the revision that gives `applicationContext` a meaning. Generic Intake files the
+  `environment` key as the reporter's environment and no longer asks for it, and shows the whole map to its
+  assistant as facts about where the reporter works, so plain, self-explanatory keys and values pay off. The wire
+  types are unchanged; only their documentation changes.
 - The vendored contract moves to the revision with the voice operations and with Generic Intake starts that hold
   attachments before the first message. `startIntakeConversation` still reads the answer to a start with
   `userMessage`; a start with `attachments` takes `startHeldIntakeConversation`.

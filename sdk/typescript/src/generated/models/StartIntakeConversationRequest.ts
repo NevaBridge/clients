@@ -59,10 +59,20 @@ export interface StartIntakeConversationRequest {
      */
     attachments?: Array<RequestAttachmentUploadRequest>;
     /**
-     * Opaque context from the reporting application, in the tenant's own
+     * Context from the reporting application, in the tenant's own
      * vocabulary. NevaBridge stores it, shows it in triage, and renders it into
-     * the delivered issue. It never interprets keys or values, and it is
-     * independent of the `X-Actor-*` headers.
+     * the delivered issue. It is independent of the `X-Actor-*` headers.
+     * NevaBridge gives one key a fixed meaning: `environment`, the environment
+     * of the product the reporter is using (for example `production` or
+     * `staging`). Send it from an interface embedded in the product the
+     * reporter reports on; Generic Intake then never asks which environment
+     * they use and files the value in the report's environment field.
+     * Generic Intake also shows the whole map to its assistant as facts about
+     * where the reporter is working, so it does not ask for what the map
+     * states (for example the application or module, its version, or the
+     * open project) and fills matching report fields from it. Use plain,
+     * self-explanatory keys and values. No key or value affects tenant
+     * scoping, reporter identity or access control.
      *
      * @type {{ [key: string]: string; }}
      * @memberof StartIntakeConversationRequest
