@@ -8,10 +8,18 @@ namespace NevaBridge.Chat;
 /// thumbs down, and the sent comment.
 /// </summary>
 /// <remarks>
-/// A press shows at once and is saved behind it; a failed save restores what was shown before the
-/// press. One save runs at a time per reply, so a failure never restores over a newer press: the
-/// thumbs and Send wait while a save runs. Pressing the pressed thumb clears the rating and its
-/// comment; the comment is changed only through Edit comment, never by a thumb.
+/// <list type="bullet">
+/// <item>A press shows at once and is saved behind it; a failed save restores the rating shown
+/// before the press.</item>
+/// <item>One save runs at a time per reply, so a failure never restores over a newer press: the
+/// thumbs and Send wait while a save runs.</item>
+/// <item>Pressing the pressed thumb clears the rating and its comment; the comment changes only
+/// through Send in the prompt, never through a thumb.</item>
+/// <item>A comment the user wrote is never lost: a failed Send reopens the prompt with it.</item>
+/// <item>Focus moves only on the user's own action: into the comment box when thumbs down or Edit
+/// comment opens the prompt or a failed Send reopens it, back to thumbs down when Send or Skip
+/// closes it. The view takes each request once, so redrawing the transcript never moves focus.</item>
+/// </list>
 /// </remarks>
 public sealed class ReplyRatingItem : INotifyPropertyChanged
 {
@@ -27,6 +35,8 @@ public sealed class ReplyRatingItem : INotifyPropertyChanged
     private bool _isPromptOpen;
     private string _commentDraft = string.Empty;
     private bool _isSaving;
+    private bool _commentFocusRequested;
+    private bool _thumbFocusRequested;
 
     /// <param name="messageId">The rated reply.</param>
     /// <param name="stored">The rating NevaBridge holds for it.</param>
@@ -100,6 +110,25 @@ public sealed class ReplyRatingItem : INotifyPropertyChanged
 
     public AsyncCommand EditCommentCommand { get; }
 
+    /// <summary>
+    /// Whether the comment box should take the focus now, because the user opened the prompt. True
+    /// once per opening; a redrawn prompt asks for nothing.
+    /// </summary>
+    public bool TakeCommentFocus()
+    {
+        bool requested = _commentFocusRequested;
+        _commentFocusRequested = false;
+        return requested;
+    }
+
+    /// <summary>Whether thumbs down should take the focus now, because Send or Skip closed the prompt. True once.</summary>
+    public bool TakeThumbFocus()
+    {
+        bool requested = _thumbFocusRequested;
+        _thumbFocusRequested = false;
+        return requested;
+    }
+
     private async Task PressAsync(string thumb)
     {
         if (_isSaving)
@@ -110,21 +139,21 @@ public sealed class ReplyRatingItem : INotifyPropertyChanged
         if (_value == thumb)
         {
             IsPromptOpen = false;
-            await SaveAsync(value: null, comment: null);
+            await SaveAsync(value: null, comment: null, keepDraftOnFailure: false);
             return;
         }
 
         if (thumb == Down)
         {
             CommentDraft = string.Empty;
-            IsPromptOpen = true;
+            OpenPrompt();
         }
         else
         {
             IsPromptOpen = false;
         }
 
-        await SaveAsync(thumb, comment: null);
+        await SaveAsync(thumb, comment: null, keepDraftOnFailure: false);
     }
 
     private async Task SendCommentAsync()
@@ -137,29 +166,44 @@ public sealed class ReplyRatingItem : INotifyPropertyChanged
         string? comment = CommentDraft.Trim() is { Length: > 0 } text
             ? text[..Math.Min(text.Length, MaxCommentLength)]
             : null;
-        IsPromptOpen = false;
+        ClosePrompt();
         if (_value == Down && comment == _comment)
         {
             return;
         }
 
-        await SaveAsync(Down, comment);
+        await SaveAsync(Down, comment, keepDraftOnFailure: true);
     }
 
     private Task SkipComment()
     {
-        IsPromptOpen = false;
+        ClosePrompt();
         return Task.CompletedTask;
     }
 
     private Task EditComment()
     {
         CommentDraft = _comment ?? string.Empty;
-        IsPromptOpen = true;
+        OpenPrompt();
         return Task.CompletedTask;
     }
 
-    private async Task SaveAsync(string? value, string? comment)
+    private void OpenPrompt()
+    {
+        _thumbFocusRequested = false;
+        _commentFocusRequested = true;
+        IsPromptOpen = true;
+    }
+
+    private void ClosePrompt()
+    {
+        _commentFocusRequested = false;
+        _thumbFocusRequested = true;
+        IsPromptOpen = false;
+    }
+
+    /// <param name="keepDraftOnFailure">Reopens the prompt with the draft when the save fails.</param>
+    private async Task SaveAsync(string? value, string? comment, bool keepDraftOnFailure)
     {
         string? previousValue = _value;
         string? previousComment = _comment;
@@ -178,7 +222,14 @@ public sealed class ReplyRatingItem : INotifyPropertyChanged
         if (!saved)
         {
             Show(previousValue, previousComment);
-            IsPromptOpen = false;
+            if (keepDraftOnFailure)
+            {
+                OpenPrompt();
+            }
+            else
+            {
+                IsPromptOpen = false;
+            }
         }
     }
 

@@ -257,6 +257,91 @@ public sealed class IntakeReplyRatingsTests
     }
 
     [Fact]
+    public void A_first_comment_that_was_not_saved_stays_in_the_open_prompt_and_can_be_sent_again()
+    {
+        // Given
+        FakeIntakeConversations nevaBridge = Started(new MessageRating(CanChange: false))
+            .Answer("setReplyRating", Rated(ReplyId, "down"))
+            .Answer("setReplyRating", ApiError(409, "ReplyRatingConflict"))
+            .Answer("setReplyRating", Rated(ReplyId, "down", "Asked twice."));
+        IntakeChatViewModel chat = Chat(nevaBridge);
+        ReplyRatingItem reply = Reply(chat);
+        reply.RateDownCommand.Execute(null);
+        reply.TakeCommentFocus();
+        reply.CommentDraft = "Asked twice.";
+
+        // When
+        reply.SendCommentCommand.Execute(null);
+
+        // Then
+        Assert.True(reply.IsDown);
+        Assert.False(reply.HasComment);
+        Assert.True(reply.IsPromptOpen);
+        Assert.Equal("Asked twice.", reply.CommentDraft);
+        Assert.True(reply.TakeCommentFocus());
+        Assert.NotNull(chat.RatingNotice);
+
+        // When
+        reply.SendCommentCommand.Execute(null);
+
+        // Then
+        Assert.Equal("Asked twice.", reply.Comment);
+        Assert.False(reply.IsPromptOpen);
+    }
+
+    [Fact]
+    public void An_edited_comment_that_was_not_saved_stays_in_the_open_prompt_while_the_sent_one_is_kept()
+    {
+        // Given
+        FakeIntakeConversations nevaBridge = Started(new MessageRating(CanChange: true) { Value = "down", Comment = "Asked twice." })
+            .Answer("setReplyRating", EdgeFailure());
+        IntakeChatViewModel chat = Chat(nevaBridge);
+        ReplyRatingItem reply = Reply(chat);
+        reply.EditCommentCommand.Execute(null);
+        reply.CommentDraft = "Asked three times.";
+
+        // When
+        reply.SendCommentCommand.Execute(null);
+
+        // Then
+        Assert.Equal("Asked twice.", reply.Comment);
+        Assert.True(reply.IsPromptOpen);
+        Assert.Equal("Asked three times.", reply.CommentDraft);
+    }
+
+    [Fact]
+    public void Focus_moves_only_when_the_user_opens_or_closes_the_prompt_not_when_the_transcript_is_redrawn()
+    {
+        // Given
+        FakeIntakeConversations nevaBridge = Started(new MessageRating(CanChange: false))
+            .Answer("setReplyRating", Rated(ReplyId, "down"));
+        IntakeChatViewModel chat = Chat(nevaBridge);
+        ReplyRatingItem reply = Reply(chat);
+
+        // When
+        reply.RateDownCommand.Execute(null);
+
+        // Then
+        Assert.True(reply.TakeCommentFocus());
+        Assert.False(reply.TakeCommentFocus());
+        Assert.False(reply.TakeThumbFocus());
+
+        // When
+        reply.SkipCommentCommand.Execute(null);
+
+        // Then
+        Assert.True(reply.TakeThumbFocus());
+        Assert.False(reply.TakeThumbFocus());
+        Assert.False(reply.TakeCommentFocus());
+
+        // When
+        reply.EditCommentCommand.Execute(null);
+
+        // Then
+        Assert.True(reply.TakeCommentFocus());
+    }
+
+    [Fact]
     public void Ratings_switched_off_while_the_chat_is_open_disappear_with_a_notice()
     {
         // Given
@@ -318,6 +403,7 @@ public sealed class IntakeReplyRatingsTests
         IntakeChatViewModel chat = Chat(nevaBridge);
         ReplyRatingItem reply = Reply(chat);
         reply.RateDownCommand.Execute(null);
+        reply.TakeCommentFocus();
         reply.CommentDraft = "Half written";
 
         // When
@@ -329,6 +415,7 @@ public sealed class IntakeReplyRatingsTests
         Assert.Same(reply, same);
         Assert.True(same.IsPromptOpen);
         Assert.Equal("Half written", same.CommentDraft);
+        Assert.False(same.TakeCommentFocus());
         Assert.Equal(2, chat.Messages.Count(message => message.Rating is not null));
     }
 }

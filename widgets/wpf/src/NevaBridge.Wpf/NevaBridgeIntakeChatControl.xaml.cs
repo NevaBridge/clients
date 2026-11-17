@@ -84,16 +84,17 @@ public partial class NevaBridgeIntakeChatControl : UserControl
         }
     }
 
-    // The comment box takes the focus when its prompt opens, and hands it back to the thumbs down
-    // when Send or Skip closes it.
+    // The comment box takes the focus when the user opens its prompt, and hands it back to the
+    // thumbs down when Send or Skip closes it. A prompt redrawn with the transcript asks for neither,
+    // so new messages leave the focus in the composer.
     private void OnCommentBoxVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
-        if (sender is not TextBox box)
+        if (sender is not TextBox { DataContext: ReplyRatingItem item } box)
         {
             return;
         }
 
-        if (box.IsVisible)
+        if (box.IsVisible && item.TakeCommentFocus())
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
             {
@@ -101,7 +102,7 @@ public partial class NevaBridgeIntakeChatControl : UserControl
                 box.CaretIndex = box.Text.Length;
             });
         }
-        else if (box.IsKeyboardFocusWithin && RateDownButtonOf(box) is { } thumb)
+        else if (!box.IsVisible && item.TakeThumbFocus() && RateDownButtonOf(box) is { } thumb)
         {
             Dispatcher.BeginInvoke(DispatcherPriority.Input, () => thumb.Focus());
         }
