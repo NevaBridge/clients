@@ -278,7 +278,7 @@ public sealed class IntakeReplyRatingsTests
         Assert.False(reply.HasComment);
         Assert.True(reply.IsPromptOpen);
         Assert.Equal("Asked twice.", reply.CommentDraft);
-        Assert.True(reply.TakeCommentFocus());
+        Assert.False(reply.TakeCommentFocus());
         Assert.NotNull(chat.RatingNotice);
 
         // When

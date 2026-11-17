@@ -17,8 +17,9 @@ namespace NevaBridge.Chat;
 /// through Send in the prompt, never through a thumb.</item>
 /// <item>A comment the user wrote is never lost: a failed Send reopens the prompt with it.</item>
 /// <item>Focus moves only on the user's own action: into the comment box when thumbs down or Edit
-/// comment opens the prompt or a failed Send reopens it, back to thumbs down when Send or Skip
-/// closes it. The view takes each request once, so redrawing the transcript never moves focus.</item>
+/// comment opens the prompt, back to thumbs down when Send or Skip closes it. The view takes each
+/// request once, so redrawing the transcript never moves focus. A failed Send reopens the prompt
+/// without taking the focus, since the user may be typing elsewhere by the time it fails.</item>
 /// </list>
 /// </remarks>
 public sealed class ReplyRatingItem : INotifyPropertyChanged
@@ -224,7 +225,8 @@ public sealed class ReplyRatingItem : INotifyPropertyChanged
             Show(previousValue, previousComment);
             if (keepDraftOnFailure)
             {
-                OpenPrompt();
+                _commentFocusRequested = false;
+                IsPromptOpen = true;
             }
             else
             {
