@@ -323,6 +323,88 @@ public sealed class IntakeClientTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetConversation_reads_the_rating_of_each_reply()
+    {
+        // Given
+        _api.Respond(200, $$"""
+            {
+              "id": "{{ConversationId}}", "tenantId": "tenant-1", "productId": "{{ProductId}}", "reporterId": "jdoe",
+              "createdAt": "2026-11-05T10:00:00Z", "updatedAt": "2026-11-05T10:01:00Z", "status": "in_progress",
+              "messages": [
+                {"id": "m-1", "conversationId": "{{ConversationId}}", "role": "assistant", "content": "When?",
+                 "createdAt": "2026-11-05T10:00:00Z", "rating": {"canChange": false, "value": "down", "comment": "Asked twice."} },
+                {"id": "m-2", "conversationId": "{{ConversationId}}", "role": "assistant", "content": "Thanks.",
+                 "createdAt": "2026-11-05T10:01:00Z", "rating": {"canChange": false} }
+              ],
+              "reports": []
+            }
+            """);
+
+        // When
+        ConversationDetail detail = await _client.GetConversationAsync(ConversationId);
+
+        // Then
+        Assert.Equal(
+            [new MessageRating(false) { Value = "down", Comment = "Asked twice." }, new MessageRating(false)],
+            detail.Messages.Select(message => message.Rating));
+    }
+
+    [Fact]
+    public async Task SetReplyRating_rates_the_reply_as_the_named_user_and_reads_the_stored_rating()
+    {
+        // Given
+        _api.Respond(200, $$"""
+            {"conversationId": "{{ConversationId}}", "messageId": "m-2", "value": "down", "comment": "Asked twice.",
+             "ratedAt": "2026-11-16T09:12:00Z"}
+            """);
+        INevaBridgeReplyRatings ratings = (INevaBridgeReplyRatings)_client;
+
+        // When
+        ReplyRating rating = await ratings.SetReplyRatingAsync(
+            ConversationId, "m-2", "jdoe", new ReplyRatingRequest("down") { Comment = "Asked twice." });
+
+        // Then
+        RecordedRequest sent = Assert.Single(_api.Requests);
+        Assert.Equal("PUT", sent.Method);
+        Assert.Equal($"/v1/conversations/{ConversationId}/messages/m-2/rating", sent.PathAndQuery);
+        Assert.Equal("jdoe", sent.Headers["X-Actor-Id"]);
+        Assert.True(JsonNode.DeepEquals(JsonNode.Parse("""{"rating":"down","comment":"Asked twice."}"""), JsonNode.Parse(sent.Body)));
+        Assert.Equal(("down", "Asked twice."), (rating.Value, rating.Comment));
+    }
+
+    [Fact]
+    public async Task ClearReplyRating_removes_the_rating_as_the_named_user_and_accepts_an_empty_answer()
+    {
+        // Given
+        _api.Respond(204, string.Empty);
+        INevaBridgeReplyRatings ratings = (INevaBridgeReplyRatings)_client;
+
+        // When
+        await ratings.ClearReplyRatingAsync(ConversationId, "m-2", "jdoe");
+
+        // Then
+        RecordedRequest sent = Assert.Single(_api.Requests);
+        Assert.Equal("DELETE", sent.Method);
+        Assert.Equal($"/v1/conversations/{ConversationId}/messages/m-2/rating", sent.PathAndQuery);
+        Assert.Equal("jdoe", sent.Headers["X-Actor-Id"]);
+    }
+
+    [Fact]
+    public async Task ClearReplyRating_refused_fails_with_the_error()
+    {
+        // Given
+        _api.Respond(403, """{"error": "Forbidden", "message": "Feature \"replyRatings\" is not available for this tenant."}""");
+        INevaBridgeReplyRatings ratings = (INevaBridgeReplyRatings)_client;
+
+        // When
+        NevaBridgeApiException error = await Assert.ThrowsAsync<NevaBridgeApiException>(
+            () => ratings.ClearReplyRatingAsync(ConversationId, "m-2", "jdoe"));
+
+        // Then
+        Assert.Equal(403, error.StatusCode);
+    }
+
+    [Fact]
     public async Task ListAttachments_reads_the_files_of_the_conversation()
     {
         // Given

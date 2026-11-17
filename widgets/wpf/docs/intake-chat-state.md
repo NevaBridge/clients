@@ -112,6 +112,11 @@ when the host passes an `IntakeChatVoice` with dictation, the hands-free convers
     sessions' order. Listening stops while waiting and reading, so no session
     is requested then. The session's presigned address never appears in a notice, an exception
     message or `ToString()`.
+24. Reply ratings are offered only with `IntakeChatOptions.ReplyRatings` and only on saved assistant
+    replies that carry a `rating`. A press shows at once; one save runs per reply at a time, so the
+    thumbs and Send wait for it, and a failed save restores what was shown before the press. A 403
+    switches ratings off for this chat. A reply's rating state, including an open comment prompt,
+    survives transcript refreshes.
 
 ## Why attachments are one serialized unit
 

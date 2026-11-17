@@ -4,7 +4,7 @@ namespace NevaBridge.Chat.Tests.Support;
 /// An in-memory NevaBridge for the Generic Intake chat. Each operation answers with the next
 /// scripted answer for it, either a result or an exception, and every call is recorded.
 /// </summary>
-public sealed class FakeIntakeConversations : INevaBridgeIntakeConversations
+public sealed class FakeIntakeConversations : INevaBridgeIntakeConversations, INevaBridgeReplyRatings
 {
     public const string ConversationId = "conversation-00000000-0000-4000-8000-000000000002";
     public const string TurnId = "intaketurn-00000000-0000-4000-8000-000000000004";
@@ -169,6 +169,25 @@ public sealed class FakeIntakeConversations : INevaBridgeIntakeConversations
         string attachmentId,
         CancellationToken cancellationToken = default) =>
         await Next<object>("deleteAttachment", ("conversationId", conversationId), ("attachmentId", attachmentId));
+
+    public Task<ReplyRating> SetReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
+        ReplyRatingRequest request,
+        CancellationToken cancellationToken = default) =>
+        Next<ReplyRating>("setReplyRating", ("conversationId", conversationId), ("messageId", messageId), ("actorId", actorId), ("request", request));
+
+    public async Task ClearReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
+        CancellationToken cancellationToken = default) =>
+        await Next<object>("clearReplyRating", ("conversationId", conversationId), ("messageId", messageId), ("actorId", actorId));
+
+    /// <summary>The stored rating NevaBridge answers a rating request with.</summary>
+    public static ReplyRating Rated(string messageId, string value, string? comment = null) =>
+        new(ConversationId, messageId, value, DateTimeOffset.UnixEpoch) { Comment = comment };
 
     private Task<T> Next<T>(string operation, params (string Name, object? Value)[] arguments)
     {

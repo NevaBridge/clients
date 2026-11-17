@@ -29,6 +29,35 @@ public static class IntakeChatText
 
     public const string AttachmentsOff = "Attachments are turned off for your organization.";
 
+    /// <summary>Names the pair of thumbs under a reply for assistive technology.</summary>
+    public const string RateReply = "Rate this reply";
+
+    public const string GoodReply = "Good reply";
+
+    public const string BadReply = "Bad reply";
+
+    /// <summary>The pressed thumb's tooltip.</summary>
+    public const string ClearRatingHint = "Press again to remove your rating";
+
+    public const string CommentPrompt = "What was wrong with this reply?";
+
+    public const string CommentOptional = "Optional";
+
+    public const string SkipComment = "Skip";
+
+    public const string SendComment = "Send";
+
+    public const string YourComment = "Your comment";
+
+    public const string EditComment = "Edit comment";
+
+    public const string RatingsOff = "Reply ratings are turned off for your organization.";
+
+    public const string Dismiss = "Dismiss";
+
+    /// <summary>A rating could not be saved; the reason follows.</summary>
+    public static string RatingNotSaved(string reason) => "Your rating was not saved. " + reason;
+
     public const string FilesUnknown = "The attached files could not be loaded.";
 
     public const string RefreshFiles = "Load files again";

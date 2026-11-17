@@ -10,6 +10,15 @@ every addition and breaking change:
 Entries are dated by the day they reached `main`. To upgrade, read every entry since the revision
 you last took.
 
+## 2026-11-17
+
+### WPF
+
+- **Reply ratings in the native Generic Intake chat**: thumbs up and down under each assistant
+  reply, with a comment after thumbs down, as in the NevaBridge web app. The application opts in
+  with `IntakeChatOptions.ReplyRatings`, only when the tenant has `replyRatings`. The example's
+  features file gains a required `replyRatings` key.
+
 ## 2026-11-16
 
 ### TypeScript SDK

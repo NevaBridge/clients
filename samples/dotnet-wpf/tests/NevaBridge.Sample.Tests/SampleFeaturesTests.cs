@@ -10,7 +10,7 @@ public sealed class SampleFeaturesTests
         // Given
         string json = """
             {"genericIntakeChat": true, "classicChat": false, "webChat": true, "attachments": false,
-             "dictation": true, "handsFreeVoice": false}
+             "dictation": true, "handsFreeVoice": false, "replyRatings": true}
             """;
 
         // When
@@ -18,15 +18,15 @@ public sealed class SampleFeaturesTests
 
         // Then
         Assert.Equal(
-            new SampleFeatures(GenericIntakeChat: true, ClassicChat: false, WebChat: true, Attachments: false, Dictation: true, HandsFreeVoice: false),
+            new SampleFeatures(GenericIntakeChat: true, ClassicChat: false, WebChat: true, Attachments: false, Dictation: true, HandsFreeVoice: false, ReplyRatings: true),
             features);
     }
 
     [Theory]
-    [InlineData("""{"genericIntakeChat": true, "classicChat": true, "webChat": true, "dictation": true, "handsFreeVoice": true}""", "missing attachments")]
-    [InlineData("""{"genericIntakeChat": true, "classicChat": true, "webChat": true, "attachments": true}""", "missing dictation, handsFreeVoice")]
-    [InlineData("""{}""", "missing genericIntakeChat, classicChat, webChat, attachments, dictation, handsFreeVoice")]
-    [InlineData("""{"genericIntakeChat": true, "classicChat": true, "webChat": true, "attachments": true, "dictation": true, "handsFreeVoice": true, "voice": true}""", "unknown key 'voice'")]
+    [InlineData("""{"genericIntakeChat": true, "classicChat": true, "webChat": true, "dictation": true, "handsFreeVoice": true, "replyRatings": true}""", "missing attachments")]
+    [InlineData("""{"genericIntakeChat": true, "classicChat": true, "webChat": true, "attachments": true}""", "missing dictation, handsFreeVoice, replyRatings")]
+    [InlineData("""{}""", "missing genericIntakeChat, classicChat, webChat, attachments, dictation, handsFreeVoice, replyRatings")]
+    [InlineData("""{"genericIntakeChat": true, "classicChat": true, "webChat": true, "attachments": true, "dictation": true, "handsFreeVoice": true, "replyRatings": true, "voice": true}""", "unknown key 'voice'")]
     [InlineData("""{"genericIntakeChat": "yes", "classicChat": true, "webChat": true, "attachments": true}""", "'genericIntakeChat' must be true or false")]
     [InlineData("""[true]""", "must hold a JSON object")]
     [InlineData("""{"genericIntakeChat": tru""", "is not valid JSON")]
@@ -63,6 +63,6 @@ public sealed class SampleFeaturesTests
         SampleFeatures features = SampleFeatures.Read(path);
 
         // Then
-        Assert.Equal(new SampleFeatures(true, true, true, true, true, true), features);
+        Assert.Equal(new SampleFeatures(true, true, true, true, true, true, true), features);
     }
 }

@@ -16,6 +16,9 @@
         <SolidColorBrush x:Key="NevaBridge.BorderBrush" Color="#D9D9D9" />
         <SolidColorBrush x:Key="NevaBridge.ErrorBrush" Color="#FDECEC" />
         <SolidColorBrush x:Key="NevaBridge.SuccessBrush" Color="#E8F5EC" />
+        <SolidColorBrush x:Key="NevaBridge.RatedGoodBrush" Color="#1E7B3A" />
+        <SolidColorBrush x:Key="NevaBridge.RatedBadBrush" Color="#C0392B" />
+        <SolidColorBrush x:Key="NevaBridge.MutedBrush" Color="#666666" />
         <BooleanToVisibilityConverter x:Key="VisibleWhenTrue" />
 
         <Style x:Key="NevaBridge.PrimaryButton" TargetType="Button">
@@ -27,6 +30,39 @@
             <Style.Triggers>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="0.5" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- A thumb under a reply: a muted outline until pressed, then tinted. -->
+        <Style x:Key="NevaBridge.RatingThumb" TargetType="ToggleButton">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="26" />
+            <Setter Property="Margin" Value="0,0,2,0" />
+            <Setter Property="FontFamily" Value="Segoe UI Symbol" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{DynamicResource NevaBridge.MutedBrush}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTipService.ShowOnDisabled" Value="True" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource NevaBridge.BorderBrush}" />
+                </Trigger>
+                <Trigger Property="IsKeyboardFocused" Value="True">
+                    <Setter Property="BorderBrush" Value="{DynamicResource NevaBridge.AccentBrush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -60,16 +96,29 @@
             <TextBlock Grid.Row="0" Margin="12,10" FontSize="15" FontWeight="SemiBold"
                        Text="{x:Static local:IntakeChatText.Title}" />
 
-            <!-- Error banner, with Check again when a reply could not be loaded -->
-            <Border Grid.Row="1" Style="{StaticResource NevaBridge.Banner}" Tag="{Binding ErrorText}"
-                    Background="{DynamicResource NevaBridge.ErrorBrush}">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="10,3" Content="{x:Static local:IntakeChatText.CheckAgain}"
-                            Command="{Binding CheckAgainCommand}"
-                            Visibility="{Binding CanCheckAgain, Converter={StaticResource VisibleWhenTrue}}" />
-                    <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" VerticalAlignment="Center" />
-                </DockPanel>
-            </Border>
+            <StackPanel Grid.Row="1">
+                <!-- Error banner, with Check again when a reply could not be loaded -->
+                <Border Style="{StaticResource NevaBridge.Banner}" Tag="{Binding ErrorText}"
+                        Background="{DynamicResource NevaBridge.ErrorBrush}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="10,3" Content="{x:Static local:IntakeChatText.CheckAgain}"
+                                Command="{Binding CheckAgainCommand}"
+                                Visibility="{Binding CanCheckAgain, Converter={StaticResource VisibleWhenTrue}}" />
+                        <TextBlock Text="{Binding ErrorText}" TextWrapping="Wrap" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
+
+                <!-- Rating banner: a rating was not saved, or ratings were switched off -->
+                <Border Style="{StaticResource NevaBridge.Banner}" Tag="{Binding RatingNotice}"
+                        Background="{DynamicResource NevaBridge.ErrorBrush}">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Margin="8,0,0,0" Padding="10,3" Content="{x:Static local:IntakeChatText.Dismiss}"
+                                Command="{Binding DismissRatingNoticeCommand}" />
+                        <TextBlock Text="{Binding RatingNotice}" TextWrapping="Wrap" VerticalAlignment="Center"
+                                   AutomationProperties.LiveSetting="Assertive" />
+                    </DockPanel>
+                </Border>
+            </StackPanel>
 
             <!-- Transcript -->
             <ScrollViewer x:Name="TranscriptScroller" Grid.Row="2" VerticalScrollBarVisibility="Auto" Padding="12,0">
@@ -89,15 +138,92 @@
                     <ItemsControl ItemsSource="{Binding Messages}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type local:ChatMessageItem}">
-                                <Border x:Name="Bubble" Margin="0,4" Padding="10,7" CornerRadius="8" MaxWidth="340"
-                                        HorizontalAlignment="Left" Background="{DynamicResource NevaBridge.AssistantBubbleBrush}">
-                                    <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
-                                             BorderThickness="0" Background="Transparent" Padding="0" />
-                                </Border>
+                                <StackPanel x:Name="Item" Margin="0,4" MaxWidth="340" HorizontalAlignment="Left">
+                                    <Border x:Name="Bubble" Padding="10,7" CornerRadius="8" HorizontalAlignment="Left"
+                                            Background="{DynamicResource NevaBridge.AssistantBubbleBrush}">
+                                        <TextBox Text="{Binding Text, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                                                 BorderThickness="0" Background="Transparent" Padding="0" />
+                                    </Border>
+
+                                    <!-- Rating control: thumbs, then the comment prompt or the sent comment -->
+                                    <StackPanel x:Name="RatingPanel" DataContext="{Binding Rating}" Margin="0,3,0,0">
+                                        <StackPanel Orientation="Horizontal"
+                                                    AutomationProperties.Name="{x:Static local:IntakeChatText.RateReply}">
+                                            <ToggleButton x:Name="RateUpButton" Style="{StaticResource NevaBridge.RatingThumb}"
+                                                          Content="&#x1F44D;" IsChecked="{Binding IsUp, Mode=OneWay}"
+                                                          Command="{Binding RateUpCommand}" ToolTip="{Binding UpHint}"
+                                                          AutomationProperties.Name="{x:Static local:IntakeChatText.GoodReply}"
+                                                          AutomationProperties.HelpText="{Binding UpHint}" />
+                                            <ToggleButton x:Name="RateDownButton" Style="{StaticResource NevaBridge.RatingThumb}"
+                                                          Content="&#x1F44E;" IsChecked="{Binding IsDown, Mode=OneWay}"
+                                                          Command="{Binding RateDownCommand}" ToolTip="{Binding DownHint}"
+                                                          AutomationProperties.Name="{x:Static local:IntakeChatText.BadReply}"
+                                                          AutomationProperties.HelpText="{Binding DownHint}" />
+                                        </StackPanel>
+
+                                        <!-- Comment prompt, after thumbs down or Edit comment -->
+                                        <Border Margin="0,4,0,0" Padding="10,8" CornerRadius="6" BorderThickness="1"
+                                                BorderBrush="{DynamicResource NevaBridge.BorderBrush}" Background="White"
+                                                Visibility="{Binding IsPromptOpen, Converter={StaticResource VisibleWhenTrue}}">
+                                            <StackPanel>
+                                                <TextBlock>
+                                                    <Run Text="{x:Static local:IntakeChatText.CommentPrompt}" FontWeight="SemiBold" />
+                                                    <Run Text="{x:Static local:IntakeChatText.CommentOptional}"
+                                                         Foreground="{DynamicResource NevaBridge.MutedBrush}" />
+                                                </TextBlock>
+                                                <TextBox Margin="0,6,0,0" MinLines="2" MaxLines="6" Padding="4" AcceptsReturn="True"
+                                                         TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                                         MaxLength="{x:Static local:ReplyRatingItem.MaxCommentLength}"
+                                                         Text="{Binding CommentDraft, UpdateSourceTrigger=PropertyChanged}"
+                                                         AutomationProperties.Name="{x:Static local:IntakeChatText.CommentPrompt}"
+                                                         IsVisibleChanged="OnCommentBoxVisibleChanged">
+                                                    <TextBox.InputBindings>
+                                                        <KeyBinding Key="Escape" Command="{Binding SkipCommentCommand}" />
+                                                    </TextBox.InputBindings>
+                                                </TextBox>
+                                                <StackPanel Margin="0,8,0,0" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                    <Button Padding="10,4" Margin="0,0,6,0" Content="{x:Static local:IntakeChatText.SkipComment}"
+                                                            Command="{Binding SkipCommentCommand}" />
+                                                    <Button Style="{StaticResource NevaBridge.PrimaryButton}"
+                                                            Content="{x:Static local:IntakeChatText.SendComment}"
+                                                            Command="{Binding SendCommentCommand}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- The sent comment -->
+                                        <Border Margin="0,4,0,0" Padding="8,2,0,2" BorderThickness="3,0,0,0"
+                                                BorderBrush="{DynamicResource NevaBridge.RatedBadBrush}"
+                                                Visibility="{Binding ShowsComment, Converter={StaticResource VisibleWhenTrue}}">
+                                            <StackPanel>
+                                                <TextBlock FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource NevaBridge.MutedBrush}"
+                                                           Text="{x:Static local:IntakeChatText.YourComment}" />
+                                                <TextBlock Margin="0,2,0,0" TextWrapping="Wrap" Text="{Binding Comment}" />
+                                                <TextBlock Margin="0,2,0,0">
+                                                    <Hyperlink Command="{Binding EditCommentCommand}">
+                                                        <Run Text="&#x270E; " /><Run Text="{x:Static local:IntakeChatText.EditComment}" />
+                                                    </Hyperlink>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </StackPanel>
                                 <DataTemplate.Triggers>
                                     <DataTrigger Binding="{Binding IsFromReporter}" Value="True">
+                                        <Setter TargetName="Item" Property="HorizontalAlignment" Value="Right" />
                                         <Setter TargetName="Bubble" Property="HorizontalAlignment" Value="Right" />
                                         <Setter TargetName="Bubble" Property="Background" Value="{DynamicResource NevaBridge.ReporterBubbleBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Rating}" Value="{x:Null}">
+                                        <Setter TargetName="RatingPanel" Property="Visibility" Value="Collapsed" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Rating.IsUp}" Value="True">
+                                        <Setter TargetName="RateUpButton" Property="Foreground" Value="White" />
+                                        <Setter TargetName="RateUpButton" Property="Background" Value="{DynamicResource NevaBridge.RatedGoodBrush}" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Rating.IsDown}" Value="True">
+                                        <Setter TargetName="RateDownButton" Property="Foreground" Value="White" />
+                                        <Setter TargetName="RateDownButton" Property="Background" Value="{DynamicResource NevaBridge.RatedBadBrush}" />
                                     </DataTrigger>
                                 </DataTemplate.Triggers>
                             </DataTemplate>

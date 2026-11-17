@@ -34,7 +34,8 @@ internal static class NevaBridgeIntegration
     /// The native Generic Intake chat: set it as the DataContext of a NevaBridgeIntakeChatControl.
     /// Returns null when the tenant does not have Generic Intake. Pass the control's file picker;
     /// it is used only when attachments are switched on and the tenant has them. Dictation and the
-    /// hands-free conversation appear each when switched on and the tenant has them.
+    /// hands-free conversation appear each when switched on and the tenant has them, and so do
+    /// reply ratings.
     /// </summary>
     public static async Task<IntakeChatViewModel?> CreateIntakeChatAsync(string screen, Func<Task<PickedFile?>> pickFile)
     {
@@ -66,6 +67,7 @@ internal static class NevaBridgeIntegration
                         HandsFree = handsFree,
                     }
                     : null,
+                ReplyRatings = NevaBridgeFeatureSwitches.ReplyRatings(tenant) ? client : null,
             });
     }
 

@@ -4,5 +4,6 @@
   "webChat": true,
   "attachments": true,
   "dictation": true,
-  "handsFreeVoice": true
+  "handsFreeVoice": true,
+  "replyRatings": true
 }

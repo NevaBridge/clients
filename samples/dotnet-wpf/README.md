@@ -133,17 +133,19 @@ read at start-up:
   "webChat": true,
   "attachments": true,
   "dictation": true,
-  "handsFreeVoice": true
+  "handsFreeVoice": true,
+  "replyRatings": true
 }
 ```
 
 Set a key to `false` to hide that chat, to turn off attachments in the Generic Intake chat and the
-web chat, or to turn off Dictate or Talk in the Generic Intake chat. Every key is required: a
+web chat, to turn off Dictate or Talk in the Generic Intake chat, or to turn off the thumbs on its
+replies. Every key is required: a
 missing file, a missing or unknown key, or a value other than `true` or `false` stops the
 application with a message naming the problem. A switched-on feature still needs the tenant's
 NevaBridge feature gate: `genericIntake` for the Generic Intake chat, `chatAttachments` for
-attachments, `voiceDictation` for dictation and `voiceConversation` for the hands-free
-conversation. The file holds no secrets.
+attachments, `voiceDictation` for dictation, `voiceConversation` for the hands-free
+conversation and `replyRatings` for reply ratings. The file holds no secrets.
 
 The file is one way to decide what your application offers, useful when installations should
 differ or when you want to switch a feature off without a new release. If every installation
@@ -246,6 +248,31 @@ steps the chat keeps working without voice.
 5. Test on Windows with a microphone against a sandbox product: dictate a sentence, then press
    Talk, say what is wrong, wait for the reply to be read, and end voice mode.
 
+## Adding reply ratings to your own native chat
+
+For a native Generic Intake chat built from an earlier version of this example. Without these
+steps the chat keeps working without ratings.
+
+1. Update your copy of `widgets/wpf` to this revision.
+2. Implement `INevaBridgeReplyRatings` in your API client by copying `SetReplyRatingAsync`,
+   `ClearReplyRatingAsync` and `SetReplyRatingRequestMessage` from
+   `src/NevaBridge.Sample.Client/NevaBridgeClient.cs`. If your client calls your own backend, add
+   the same operations there:
+
+   | Operation               | Request                                                                                    |
+   | ----------------------- | ------------------------------------------------------------------------------------------ |
+   | `SetReplyRatingAsync`   | `PUT /v1/conversations/{conversationId}/messages/{messageId}/rating` with `X-Actor-Id`     |
+   | `ClearReplyRatingAsync` | `DELETE /v1/conversations/{conversationId}/messages/{messageId}/rating` with `X-Actor-Id`  |
+
+   Your `GetConversationAsync` must keep each message's `rating`; the chat shows thumbs only on
+   replies that carry one.
+3. Where you create the `IntakeChatViewModel`, pass `ReplyRatings` as
+   `NevaBridgeIntegration.CreateIntakeChatAsync` does: your client, only with `replyRatings`.
+4. If you use the features file, add `replyRatings` to your copy of `SampleFeatures.cs`,
+   `NevaBridgeFeatureSwitches.cs` and `nevabridge-features.json`.
+5. Test against a sandbox product: rate a reply up, then down with a comment, edit the comment,
+   remove the rating, and check the Reply ratings page in NevaBridge.
+
 ## Troubleshooting
 
 | Symptom                                                          | Cause                                                                                                                                                                                                            |
@@ -257,6 +284,7 @@ steps the chat keeps working without voice.
 | The chat says NevaBridge refused the request (401 or 403)        | The key was revoked, belongs to another environment, or the product id is wrong.                                                                                                                                 |
 | No "Attach file" button                                          | `attachments` is off in the features file, or your organization lacks the feature.                                                                                                                               |
 | No "Dictate" or "Talk" button                                    | `dictation` or `handsFreeVoice` is off in the features file, or your organization lacks `voiceDictation` or `voiceConversation`.                                                                                 |
+| No thumbs under the replies                                      | `replyRatings` is off in the features file, or your organization lacks `replyRatings`.                                                                                                                           |
 | "The microphone could not be opened"                             | No microphone is connected, or Windows Settings > Privacy & security > Microphone does not let desktop apps use it.                                                                                              |
 | No "Support assistant" entry                                     | `genericIntakeChat` is off or your organization lacks Generic Intake. When the settings or features could not be read, every chat entry is hidden, and a bar above the invoices says why and offers Check again. |
 | The application stops with "NevaBridge features file"            | The features file is missing or invalid; the message names the problem.                                                                                                                                          |

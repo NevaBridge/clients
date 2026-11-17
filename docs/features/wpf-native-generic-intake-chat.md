@@ -44,6 +44,16 @@ your own native chat").
   16 kHz mono 16-bit) and `NAudioSpeechPlayer` (MP3 from memory) are the Windows implementations;
   NAudio is the package's second runtime dependency. The language is English or Deutsch, chosen in
   the chat, starting from `IntakeChatOptions.VoiceLanguage` or the Windows display language.
+- **Reply ratings** are offered when the host passes an `INevaBridgeReplyRatings`
+  (`IntakeChatOptions.ReplyRatings`) and NevaBridge sends a `rating` on the replies, which it does
+  only for a tenant with `replyRatings`. Each assistant reply then carries a `ReplyRatingItem`
+  (`ChatMessageItem.Rating`): thumbs up and down, the comment prompt after thumbs down (Skip,
+  Send, Escape skips), the sent comment with Edit comment, and pressing the pressed thumb clears
+  the rating. A press shows at once and saves behind it, one save at a time per reply; a failed
+  save restores the earlier rating and sets `RatingNotice`, and a 403 switches ratings off for the
+  chat. The chat rates as its reporter and ignores `rating.canChange`, because it shows only the
+  conversation its own reporter started. Rating items survive transcript refreshes, so a comment
+  being written is kept when the next reply arrives.
 - **Texts** are English and live in `IntakeChatText`.
 
 ### Conversation flow
@@ -69,16 +79,18 @@ and the product's default writer applies.
 ### Sample
 
 - **Features file** `nevabridge-features.json`, copied next to the exe, with the required boolean
-  keys `genericIntakeChat`, `classicChat`, `webChat`, `attachments`, `dictation` and
-  `handsFreeVoice`. A missing file, a missing
+  keys `genericIntakeChat`, `classicChat`, `webChat`, `attachments`, `dictation`,
+  `handsFreeVoice` and `replyRatings`. A missing file, a missing
   or unknown key, or a non-boolean value stops the sample at start-up with a message naming the
   problem. The file holds no secrets.
 - A feature is offered only when the file enables it and the tenant's feature gate allows it:
   `genericIntake` for the Generic Intake chat, `chatAttachments` for attachments, `voiceDictation`
-  for dictation and `voiceConversation` for the hands-free conversation. The sample reads
+  for dictation, `voiceConversation` for the hands-free conversation and `replyRatings` for reply
+  ratings. The sample reads
   the tenant's features at start-up and again when a chat opens. The attachments switch covers the
   Generic Intake chat and the web chat; the classic native chat has no attachment UI.
-- `NevaBridgeClient` implements `INevaBridgeIntakeConversations` and `INevaBridgeVoice`, and
+- `NevaBridgeClient` implements `INevaBridgeIntakeConversations`, `INevaBridgeVoice` and
+  `INevaBridgeReplyRatings`, and
   `CurrentReporter` carries an optional email and phone for `reporterContact`.
 
 ## Known limitations / not yet implemented
@@ -92,6 +104,9 @@ and the product's default writer applies.
   speaker are exercised only on Windows by hand; the automated checks use prepared audio.
 - No drafts while chatting, no resuming a conversation after the application restarts,
   no attachments in the classic native chat, and no choice of writer model or response language.
+- Reply ratings: a reply being written cannot be rated until it is saved, the reply's time is not
+  shown next to the thumbs, the classic native chat has no ratings, and the look has been checked
+  only by building on Linux and on Windows CI, not on screen.
 - Staff features of the NevaBridge web app (pins, planning details, archive) are not offered.
 - Closing the window cancels polling; a running turn still completes on NevaBridge, and no local
   state is kept.

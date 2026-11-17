@@ -43,7 +43,7 @@ status as text; adding an animation around it is a good place to match your appl
 Losing a poll answer is harmless: the chat asks again from where it left off, and a turn already
 running is followed rather than started twice.
 
-### Attachments and voice
+### Attachments, voice and reply ratings
 
 - **Attachments:** the reporter attaches files, sees them listed and removes them. NevaBridge
   reads them while it answers; images get a description first. Requires the tenant feature
@@ -53,6 +53,9 @@ running is followed rather than started twice.
   `voiceDictation`.
 - **Hands-free conversation:** Talk sends what the reporter said after a pause, reads the reply
   aloud and listens again. Requires `voiceConversation`.
+- **Reply ratings:** in the native Generic Intake chat, the reporter gives each assistant reply a
+  thumbs up or down and may say what was wrong with a bad one. Requires `replyRatings`. The
+  ratings appear on the Reply ratings page in NevaBridge.
 
 ### Turning features on and off: configuration or code
 
@@ -299,6 +302,28 @@ shortly before it runs out only while it listens. Audio runs through
 MP3. When Windows privacy settings deny the microphone, the chat says so and keeps offering voice.
 A 403 from a voice call switches voice off for the chat; a 402 ends voice with NevaBridge's
 message.
+
+#### Reply ratings
+
+Under each assistant reply the chat shows thumbs up ("Good reply") and thumbs down ("Bad reply"),
+as the NevaBridge web app does. A press saves at once; pressing the pressed thumb removes the rating.
+Thumbs down opens a short prompt, "What was wrong with this reply?", with Skip and Send; a sent
+comment shows under the reply with Edit comment. When a rating cannot be saved, the reply shows its
+earlier rating again and a banner says why. A 403 switches ratings off for the chat.
+
+Pass an `INevaBridgeReplyRatings` only when you offer ratings and the tenant has `replyRatings`:
+
+```csharp
+IntakeChatOptions options = new()
+{
+    // ...
+    ReplyRatings = features.GetValueOrDefault("replyRatings") ? nevaBridge : null,
+};
+```
+
+`nevaBridge` implements `INevaBridgeReplyRatings` (`SetReplyRatingAsync` and
+`ClearReplyRatingAsync`); the sample's `NevaBridgeClient` does. The chat rates as its reporter, who
+is always the conversation's participant.
 
 ## 2. NevaBridge-hosted web chat
 

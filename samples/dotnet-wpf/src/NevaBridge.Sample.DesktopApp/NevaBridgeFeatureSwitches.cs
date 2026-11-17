@@ -11,7 +11,7 @@ namespace NevaBridge.Sample.DesktopApp;
 internal static class NevaBridgeFeatureSwitches
 {
     /// <summary>Read once at start-up; the application does not start without a valid file.</summary>
-    public static SampleFeatures File { get; private set; } = new(false, false, false, false, false, false);
+    public static SampleFeatures File { get; private set; } = new(false, false, false, false, false, false, false);
 
     public static void Load() =>
         File = SampleFeatures.Read(Path.Combine(AppContext.BaseDirectory, SampleFeatures.FileName));
@@ -31,4 +31,8 @@ internal static class NevaBridgeFeatureSwitches
     /// <summary>The hands-free conversation: switched on in the file, and the tenant has <c>voiceConversation</c>.</summary>
     public static bool HandsFreeVoice(IReadOnlyDictionary<string, bool> tenant) =>
         File.HandsFreeVoice && tenant.GetValueOrDefault("voiceConversation");
+
+    /// <summary>Reply ratings: switched on in the file, and the tenant has <c>replyRatings</c>.</summary>
+    public static bool ReplyRatings(IReadOnlyDictionary<string, bool> tenant) =>
+        File.ReplyRatings && tenant.GetValueOrDefault("replyRatings");
 }

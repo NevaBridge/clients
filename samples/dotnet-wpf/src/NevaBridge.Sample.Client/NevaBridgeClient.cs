@@ -25,6 +25,7 @@ public sealed class NevaBridgeClient :
     INevaBridgeConversations,
     INevaBridgeIntakeConversations,
     INevaBridgeVoice,
+    INevaBridgeReplyRatings,
     INevaBridgeWebChatApi
 {
     /// <summary>Seconds a turn-events read waits for a first new event.</summary>
@@ -281,26 +282,23 @@ public sealed class NevaBridgeClient :
         CancellationToken cancellationToken) =>
         SendJsonAsync(GetConversationRequestMessage(conversationId, actorId), cancellationToken);
 
-    Task<JsonElement> INevaBridgeWebChatApi.SetReplyRatingAsync(
+    public Task<ReplyRating> SetReplyRatingAsync(
         string conversationId,
         string messageId,
         string actorId,
         ReplyRatingRequest request,
-        CancellationToken cancellationToken)
-    {
-        HttpRequestMessage message = CreateRequest(HttpMethod.Put, ReplyRatingPath(conversationId, messageId), request);
-        message.Headers.Add("X-Actor-Id", actorId);
-        return SendJsonAsync(message, cancellationToken);
-    }
+        CancellationToken cancellationToken = default) =>
+        SendAsync<ReplyRating>(SetReplyRatingRequestMessage(conversationId, messageId, actorId, request), cancellationToken);
 
-    async Task INevaBridgeWebChatApi.ClearReplyRatingAsync(
+    public async Task ClearReplyRatingAsync(
         string conversationId,
         string messageId,
         string actorId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken = default)
     {
-        using HttpRequestMessage message = CreateRequest(HttpMethod.Delete, ReplyRatingPath(conversationId, messageId), null);
-        message.Headers.Add("X-Actor-Id", actorId);
+        using HttpRequestMessage message = WithActor(
+            CreateRequest(HttpMethod.Delete, ReplyRatingPath(conversationId, messageId), null),
+            actorId);
         using HttpResponseMessage response = await _http.SendAsync(message, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
         {
@@ -308,6 +306,28 @@ public sealed class NevaBridgeClient :
             throw ApiErrors.FromResponse((int)response.StatusCode, body);
         }
     }
+
+    Task<JsonElement> INevaBridgeWebChatApi.SetReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
+        ReplyRatingRequest request,
+        CancellationToken cancellationToken) =>
+        SendJsonAsync(SetReplyRatingRequestMessage(conversationId, messageId, actorId, request), cancellationToken);
+
+    Task INevaBridgeWebChatApi.ClearReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
+        CancellationToken cancellationToken) =>
+        ClearReplyRatingAsync(conversationId, messageId, actorId, cancellationToken);
+
+    private HttpRequestMessage SetReplyRatingRequestMessage(
+        string conversationId,
+        string messageId,
+        string actorId,
+        ReplyRatingRequest request) =>
+        WithActor(CreateRequest(HttpMethod.Put, ReplyRatingPath(conversationId, messageId), request), actorId);
 
     private static string ReplyRatingPath(string conversationId, string messageId) =>
         $"v1/conversations/{Uri.EscapeDataString(conversationId)}/messages/{Uri.EscapeDataString(messageId)}/rating";

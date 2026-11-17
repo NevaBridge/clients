@@ -148,7 +148,31 @@ public sealed record Message(
     string ConversationId,
     string Role,
     string Content,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt)
+{
+    /// <summary>
+    /// An assistant reply's rating, present only when the tenant has <c>replyRatings</c>; then also
+    /// on a reply nobody rated yet.
+    /// </summary>
+    public MessageRating? Rating { get; init; }
+}
+
+/// <summary>How an assistant reply is rated.</summary>
+/// <param name="CanChange">Whether the reader named in <c>X-Actor-Id</c> is the conversation's participant.</param>
+public sealed record MessageRating(bool CanChange)
+{
+    /// <summary><c>up</c>, <c>down</c>, or null when the reply is not rated.</summary>
+    public string? Value { get; init; }
+
+    /// <summary>Why a <c>down</c> reply did not help, when the participant said so.</summary>
+    public string? Comment { get; init; }
+}
+
+/// <summary>A stored rating, as NevaBridge answers a rating request.</summary>
+public sealed record ReplyRating(string ConversationId, string MessageId, string Value, DateTimeOffset RatedAt)
+{
+    public string? Comment { get; init; }
+}
 
 public sealed record ReportDelivery(
     string ConnectorType,

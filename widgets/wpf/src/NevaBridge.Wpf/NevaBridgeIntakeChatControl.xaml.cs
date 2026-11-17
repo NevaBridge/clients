@@ -3,6 +3,8 @@ using System.Collections.Specialized;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
 using NevaBridge.Chat;
 
 namespace NevaBridge.Wpf;
@@ -12,7 +14,8 @@ namespace NevaBridge.Wpf;
 /// <see cref="IntakeChatViewModel"/>, and pass <see cref="PickFileAsync"/> as
 /// <see cref="IntakeChatOptions.PickFile"/> to offer attachments. To offer voice, pass an
 /// <see cref="IntakeChatVoice"/> with a <see cref="NAudioMicrophone"/> and a
-/// <see cref="NAudioSpeechPlayer"/> as <see cref="IntakeChatOptions.Voice"/>.
+/// <see cref="NAudioSpeechPlayer"/> as <see cref="IntakeChatOptions.Voice"/>. To offer reply ratings, pass an
+/// <see cref="INevaBridgeReplyRatings"/> as <see cref="IntakeChatOptions.ReplyRatings"/>.
 /// </summary>
 public partial class NevaBridgeIntakeChatControl : UserControl
 {
@@ -79,6 +82,43 @@ public partial class NevaBridgeIntakeChatControl : UserControl
             chat.SendCommand.Execute(null);
             e.Handled = true;
         }
+    }
+
+    // The comment box takes the focus when its prompt opens, and hands it back to the thumbs down
+    // when Send or Skip closes it.
+    private void OnCommentBoxVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is not TextBox box)
+        {
+            return;
+        }
+
+        if (box.IsVisible)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+            {
+                box.Focus();
+                box.CaretIndex = box.Text.Length;
+            });
+        }
+        else if (box.IsKeyboardFocusWithin && RateDownButtonOf(box) is { } thumb)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, () => thumb.Focus());
+        }
+    }
+
+    private static UIElement? RateDownButtonOf(DependencyObject element)
+    {
+        for (DependencyObject? parent = element; parent is not null; parent = VisualTreeHelper.GetParent(parent))
+        {
+            if (parent is ContentPresenter { ContentTemplate: { } template } presenter
+                && template.FindName("RateDownButton", presenter) is UIElement thumb)
+            {
+                return thumb;
+            }
+        }
+
+        return null;
     }
 
     private void ScrollToNewestMessage(object? sender, NotifyCollectionChangedEventArgs e)

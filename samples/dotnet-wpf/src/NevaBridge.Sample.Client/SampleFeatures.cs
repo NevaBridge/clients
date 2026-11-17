@@ -13,18 +13,20 @@ namespace NevaBridge.Sample.Client;
 /// <param name="Attachments">File attachments in the Generic Intake chat and the web chat (also needs <c>chatAttachments</c>).</param>
 /// <param name="Dictation">Dictation in the Generic Intake chat (also needs <c>voiceDictation</c>).</param>
 /// <param name="HandsFreeVoice">The hands-free conversation in the Generic Intake chat (also needs <c>voiceConversation</c>).</param>
+/// <param name="ReplyRatings">Thumbs up and down on replies in the Generic Intake chat (also needs <c>replyRatings</c>).</param>
 public sealed record SampleFeatures(
     bool GenericIntakeChat,
     bool ClassicChat,
     bool WebChat,
     bool Attachments,
     bool Dictation,
-    bool HandsFreeVoice)
+    bool HandsFreeVoice,
+    bool ReplyRatings)
 {
     public const string FileName = "nevabridge-features.json";
 
     private static readonly string[] Keys =
-        ["genericIntakeChat", "classicChat", "webChat", "attachments", "dictation", "handsFreeVoice"];
+        ["genericIntakeChat", "classicChat", "webChat", "attachments", "dictation", "handsFreeVoice", "replyRatings"];
 
     /// <summary>Reads the file; every key is required, so a typo never silently switches a feature off.</summary>
     /// <exception cref="SampleFeaturesException">The file is missing or not valid.</exception>
@@ -89,7 +91,8 @@ public sealed record SampleFeatures(
             values["webChat"],
             values["attachments"],
             values["dictation"],
-            values["handsFreeVoice"]);
+            values["handsFreeVoice"],
+            values["replyRatings"]);
     }
 }
 

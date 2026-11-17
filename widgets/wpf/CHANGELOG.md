@@ -8,6 +8,16 @@ classic chat, which is unchanged.
 
 ### Added
 
+- Reply ratings in the native Generic Intake chat: thumbs up and down under each assistant reply,
+  a comment prompt after thumbs down, Edit comment, and pressing the pressed thumb to remove the
+  rating, as in the NevaBridge web app. Offered when `IntakeChatOptions.ReplyRatings` is set to an
+  `INevaBridgeReplyRatings` (`SetReplyRatingAsync`, `ClearReplyRatingAsync`, with `ReplyRating`) and
+  the tenant has `replyRatings`. The new interface is separate, so existing implementations keep
+  compiling; the sample's `NevaBridgeClient` implements it. `Message.Rating` (`MessageRating`) reads
+  each reply's rating, and `ChatMessageItem.Rating` carries the control's state.
+- The WPF example's features file has a required `replyRatings` key. A copy without it stops the
+  example at start-up, naming the key.
+
 - The web chat requests `setReplyRating` and `clearReplyRating` in `WebChatBridge`, which rate an
   assistant reply as the reporter, for a conversation the page started.
   `INevaBridgeWebChatApi` gains `SetReplyRatingAsync` and `ClearReplyRatingAsync`

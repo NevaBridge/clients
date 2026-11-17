@@ -4,7 +4,11 @@ using System.Runtime.CompilerServices;
 
 namespace NevaBridge.Chat;
 
-public sealed record ChatMessageItem(string Text, bool IsFromReporter);
+public sealed record ChatMessageItem(string Text, bool IsFromReporter)
+{
+    /// <summary>The rating control under an assistant reply; null where the chat offers none.</summary>
+    public ReplyRatingItem? Rating { get; init; }
+}
 
 public sealed record ReportField(string Name, string Value);
 

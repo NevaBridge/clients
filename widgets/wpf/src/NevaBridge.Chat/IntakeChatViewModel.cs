@@ -69,6 +69,13 @@ public sealed record IntakeChatOptions
     public IntakeChatVoice? Voice { get; init; }
 
     /// <summary>
+    /// Thumbs up and down under each assistant reply, with a comment after a thumbs down. Leave it
+    /// null when ratings are off, in your configuration or for the tenant (<c>replyRatings</c>); the
+    /// chat then offers none.
+    /// </summary>
+    public INevaBridgeReplyRatings? ReplyRatings { get; init; }
+
+    /// <summary>
     /// The language voice listens and speaks in at first; the reporter can change it. Null follows
     /// <see cref="System.Globalization.CultureInfo.CurrentUICulture"/>.
     /// </summary>
@@ -148,6 +155,11 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     private bool _isBusy;
     private bool _isAttaching;
     private bool _attachmentsOff;
+    private bool _ratingsOff;
+    private string? _ratingNotice;
+
+    // Kept across transcript refreshes, so a prompt being written survives a new reply.
+    private readonly Dictionary<string, ReplyRatingItem> _ratings = new(StringComparer.Ordinal);
     private bool _filesUnknown;
     private bool _refreshAfterAttaching;
     private bool _isEnded;
@@ -183,6 +195,13 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
                 await RefreshAttachmentsAsync();
             },
             () => FilesUnknown && OffersAttachments && !_isAttaching);
+        DismissRatingNoticeCommand = new AsyncCommand(
+            () =>
+            {
+                RatingNotice = null;
+                return Task.CompletedTask;
+            },
+            () => true);
         if (_options.Voice is { } voice && (voice.Dictation || voice.HandsFree))
         {
             Voice = new IntakeVoiceViewModel(
@@ -218,6 +237,19 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>Lists the attached files again after reading them failed.</summary>
     public AsyncCommand RefreshFilesCommand { get; }
+
+    public AsyncCommand DismissRatingNoticeCommand { get; }
+
+    /// <summary>Why a rating was not saved, or that ratings were switched off.</summary>
+    public string? RatingNotice
+    {
+        get => _ratingNotice;
+        private set
+        {
+            _ratingNotice = value;
+            OnPropertyChanged(nameof(RatingNotice));
+        }
+    }
 
     /// <summary>Which files are attached could not be read; <see cref="RefreshFilesCommand"/> tries again.</summary>
     public bool FilesUnknown => _filesUnknown;
@@ -1087,12 +1119,81 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         Messages.Clear();
         foreach (Message message in _transcript)
         {
-            Messages.Add(new ChatMessageItem(message.Content, IsFromReporter: message.Role == "user"));
+            Messages.Add(new ChatMessageItem(message.Content, IsFromReporter: message.Role == "user")
+            {
+                Rating = RatingFor(message),
+            });
         }
 
         if (pendingText is not null)
         {
             Messages.Add(new ChatMessageItem(pendingText, IsFromReporter: true));
+        }
+    }
+
+    /// <remarks>
+    /// NevaBridge sends a rating only on assistant replies of a tenant with <c>replyRatings</c>. Its
+    /// <c>canChange</c> is not consulted: this chat shows only the conversation its own reporter
+    /// started, so the reporter is the participant.
+    /// </remarks>
+    private ReplyRatingItem? RatingFor(Message message)
+    {
+        if (_options.ReplyRatings is null || _ratingsOff || message.Role != "assistant" || message.Rating is not { } stored)
+        {
+            return null;
+        }
+
+        if (!_ratings.TryGetValue(message.Id, out ReplyRatingItem? item))
+        {
+            item = new ReplyRatingItem(message.Id, stored, SaveRatingAsync);
+            _ratings.Add(message.Id, item);
+        }
+
+        return item;
+    }
+
+    private async Task<bool> SaveRatingAsync(ReplyRatingItem item, string? value, string? comment)
+    {
+        if (_options.ReplyRatings is not { } ratings || _conversationId is not { } conversationId)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (value is null)
+            {
+                await ratings.ClearReplyRatingAsync(conversationId, item.MessageId, _reporter.Id, _closing.Token);
+            }
+            else
+            {
+                await ratings.SetReplyRatingAsync(
+                    conversationId,
+                    item.MessageId,
+                    _reporter.Id,
+                    new ReplyRatingRequest(value) { Comment = comment },
+                    _closing.Token);
+            }
+
+            RatingNotice = null;
+            return true;
+        }
+        catch (OperationCanceledException) when (_closing.IsCancellationRequested)
+        {
+            return false;
+        }
+        catch (Exception error) when (IsForbidden(error))
+        {
+            // Staff switched ratings off while the chat was open.
+            _ratingsOff = true;
+            RatingNotice = IntakeChatText.RatingsOff;
+            ShowTranscript(pendingText: null);
+            return false;
+        }
+        catch (Exception error)
+        {
+            RatingNotice = IntakeChatText.RatingNotSaved(ChatErrors.Describe(error));
+            return false;
         }
     }
 
