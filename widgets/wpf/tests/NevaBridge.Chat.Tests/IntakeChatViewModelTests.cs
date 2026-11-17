@@ -482,6 +482,47 @@ public sealed class IntakeChatViewModelTests
     }
 
     [Fact]
+    public void A_conversation_holding_the_most_files_tells_the_assistant_attaching_is_over_until_one_is_removed()
+    {
+        // Given
+        PickedFile file = new("crash.log", 12, () => new MemoryStream(new byte[12]));
+        FakeIntakeConversations nevaBridge = Started();
+        for (int number = 1; number <= 10; number++)
+        {
+            string attachmentId = $"attachment-{number}";
+            nevaBridge.Answer("requestAttachmentUpload", Admission(attachmentId)).Answer(
+                "uploadAttachment",
+                new Attachment(attachmentId, "crash.log", "text", 12, "api:jdoe", DateTimeOffset.UnixEpoch));
+        }
+
+        nevaBridge.Answer("deleteAttachment", new object())
+            .Answer("startIntakeTurn", new IntakeTurnStarted(NextTurnId))
+            .Answer("getIntakeTurnEvents", Events(Done(2)))
+            .Answer("getConversation", Conversation(2, [("user", "It crashes."), ("assistant", "When?"), ("user", "On save."), ("assistant", "Thanks.")]))
+            .Answer("startIntakeTurn", new IntakeTurnStarted(NextTurnId))
+            .Answer("getIntakeTurnEvents", Events(Done(3)))
+            .Answer("getConversation", Conversation(3, [("user", "It crashes."), ("assistant", "When?"), ("user", "On save."), ("assistant", "Thanks."), ("user", "Always."), ("assistant", "Noted.")]));
+        IntakeChatViewModel chat = Chat(nevaBridge, new IntakeChatOptions { PickFile = () => Task.FromResult<PickedFile?>(file) });
+        Send(chat, "It crashes.");
+        for (int number = 1; number <= 10; number++)
+        {
+            chat.AttachCommand.Execute(null);
+        }
+
+        // When
+        Send(chat, "On save.");
+        chat.Attachments[0].RemoveCommand.Execute(null);
+        Send(chat, "Always.");
+
+        // Then
+        Assert.Equal(9, chat.Attachments.Count);
+        Assert.Equal(
+            [new IntakeChatControls(false), new IntakeChatControls(true)],
+            nevaBridge.Calls.Where(c => c.Operation == "startIntakeTurn")
+                .Select(c => ((StartIntakeTurnRequest)c.Arguments["request"]!).ChatControls));
+    }
+
+    [Fact]
     public void Attachments_switched_off_while_the_chat_is_open_disappear_with_a_notice()
     {
         // Given
