@@ -2982,10 +2982,11 @@ components:
 
     ModelProvider:
       type: string
-      description: The service that ran the failing model.
+      description: The service that ran the failing model; `azure` is the tenant's own Azure resource, connected in Setup > Inference.
       enum:
         - bedrock
         - openrouter
+        - azure
 
     ModelInvocationRole:
       type: string

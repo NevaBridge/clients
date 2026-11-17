@@ -22,6 +22,9 @@
 
 ### Changed
 
+- `ModelProvider` gains `azure`, the tenant's own Azure resource, so a model failure can name it as the service that
+  ran the model.
+
 - The vendored contract moves to the revision with reply ratings and `chatControls`, and whose `finish` description
   says the closing reply uses the conversation's language.
 

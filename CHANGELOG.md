@@ -12,6 +12,12 @@ you last took.
 
 ## 2026-11-16
 
+### TypeScript SDK
+
+- `ModelProvider` gains `azure`: a model failure can name the tenant's own Azure resource as the
+  service that ran the model. The .NET models and both web chat bridges already pass provider
+  values through as text, so they need no change.
+
 ### All packages
 
 - **Reply ratings**: the user can give an assistant reply a thumbs up or down, with a comment on a

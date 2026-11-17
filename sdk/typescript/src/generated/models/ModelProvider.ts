@@ -14,12 +14,13 @@
 
 
 /**
- * The service that ran the failing model.
+ * The service that ran the failing model; `azure` is the tenant's own Azure resource, connected in Setup > Inference.
  * @export
  */
 export const ModelProvider = {
     Bedrock: 'bedrock',
-    Openrouter: 'openrouter'
+    Openrouter: 'openrouter',
+    Azure: 'azure'
 } as const;
 export type ModelProvider = (typeof ModelProvider)[keyof typeof ModelProvider] | (string & {});
 
