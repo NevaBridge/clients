@@ -27,8 +27,17 @@ export interface StartConversationInput {
   readonly applicationContext?: Readonly<Record<string, string>>;
 }
 
+/**
+ * The controls the chat offers once the reply to a turn is shown, so the assistant asks for a file
+ * only when the user can attach one.
+ */
+export interface ChatControls {
+  readonly attachments: boolean;
+}
+
 export interface StartIntakeConversationInput {
   readonly text: string;
+  readonly chatControls?: ChatControls;
   /** The application's own context, stored with the conversation and shown in triage. */
   readonly applicationContext?: Readonly<Record<string, string>>;
 }
@@ -39,6 +48,13 @@ export interface StartIntakeTurnInput {
   readonly expectedRevision: number;
   /** Ends the conversation with this message. */
   readonly finish?: boolean;
+  readonly chatControls?: ChatControls;
+}
+
+export interface ReplyRatingInput {
+  readonly rating: "up" | "down";
+  /** Only with down. */
+  readonly comment?: string;
 }
 
 /** A file the user chose to attach, read only when it is uploaded. */
@@ -83,7 +99,15 @@ export interface NevaBridgeConversations {
     reporter: Reporter,
     input: StartConversationInput,
   ): Promise<JsonValue>;
-  appendMessage(conversationId: string, text: string): Promise<JsonValue>;
+  /**
+   * `actorId` names the user who sends the message. With `replyRatings`, NevaBridge marks a reply
+   * as ratable only for the conversation's participant, so pass it whenever the user is known.
+   */
+  appendMessage(
+    conversationId: string,
+    text: string,
+    actorId?: string,
+  ): Promise<JsonValue>;
   /**
    * Finalizes a report. Call it when the user says they are done; do not add an inactivity timer,
    * NevaBridge finalizes an abandoned conversation itself.
@@ -110,9 +134,26 @@ export interface NevaBridgeConversations {
   ): Promise<JsonValue>;
   /** Reads a turn's events after the cursor `after`, or from its first event. */
   getIntakeTurnEvents(turnId: string, after?: string): Promise<JsonValue>;
-  getConversation(conversationId: string): Promise<JsonValue>;
+  /** `actorId` names the user who reads the conversation; see appendMessage. */
+  getConversation(conversationId: string, actorId?: string): Promise<JsonValue>;
   /** Removes one file from an open conversation. Removing a file that is gone succeeds. */
   deleteAttachment(conversationId: string, attachmentId: string): Promise<void>;
+  /**
+   * Rates an assistant reply as `actorId`, who must be the conversation's participant. Without
+   * it, the chat hides its rating controls.
+   */
+  setReplyRating?(
+    conversationId: string,
+    messageId: string,
+    actorId: string,
+    input: ReplyRatingInput,
+  ): Promise<JsonValue>;
+  /** Removes the rating of an assistant reply as `actorId`; clearing an unrated reply succeeds. */
+  clearReplyRating?(
+    conversationId: string,
+    messageId: string,
+    actorId: string,
+  ): Promise<void>;
 }
 
 /**
@@ -156,8 +197,12 @@ export function createSdkConversations(
         },
       }),
 
-    appendMessage: (conversationId, text) =>
-      client.json.appendMessage({conversationId, request: {content: text}}),
+    appendMessage: (conversationId, text, actorId) =>
+      client.json.appendMessage({
+        conversationId,
+        actorId,
+        request: {content: text},
+      }),
 
     submitReport: (conversationId, reportId) =>
       client.json.submitReport({conversationId, reportId}),
@@ -217,7 +262,12 @@ export function createSdkConversations(
         productId,
         ...actor(reporter),
         request: {
-          userMessage: {content: input.text},
+          userMessage: {
+            content: input.text,
+            chatControls: input.chatControls
+              ? {...input.chatControls}
+              : undefined,
+          },
           applicationContext: input.applicationContext
             ? {...input.applicationContext}
             : undefined,
@@ -231,16 +281,30 @@ export function createSdkConversations(
           content: input.text,
           expectedRevision: input.expectedRevision,
           finish: input.finish,
+          chatControls: input.chatControls
+            ? {...input.chatControls}
+            : undefined,
         },
       }),
 
     getIntakeTurnEvents: (turnId, after) =>
       client.json.getIntakeTurnEvents({turnId, after, wait: POLL_WAIT_SECONDS}),
 
-    getConversation: (conversationId) =>
-      client.json.getConversation({conversationId}),
+    getConversation: (conversationId, actorId) =>
+      client.json.getConversation({conversationId, actorId}),
 
     deleteAttachment: (conversationId, attachmentId) =>
       client.deleteAttachment({conversationId, attachmentId}),
+
+    setReplyRating: (conversationId, messageId, actorId, input) =>
+      client.json.setReplyRating({
+        conversationId,
+        messageId,
+        actorId,
+        request: {rating: input.rating, comment: input.comment},
+      }),
+
+    clearReplyRating: (conversationId, messageId, actorId) =>
+      client.clearReplyRating({conversationId, messageId, actorId}),
   };
 }

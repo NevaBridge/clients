@@ -51,7 +51,7 @@ type CaseApiResponse =
 
 interface CaseApiCall {
   readonly operationId: string | null;
-  readonly method: "GET" | "POST" | "PUT";
+  readonly method: "GET" | "POST" | "PUT" | "DELETE";
   readonly path?: string;
   readonly url?: string;
   readonly headers: Readonly<Record<string, string>>;
@@ -112,7 +112,11 @@ async function record(request: Request): Promise<RecordedCall> {
   });
   const bytes = new Uint8Array(await request.arrayBuffer());
   let body: unknown = undefined;
-  if (bytes.length > 0 && request.method !== "PUT") {
+  // An upload to a presigned address carries the file's bytes; every API call carries JSON.
+  if (
+    bytes.length > 0 &&
+    request.headers.get("content-type")?.startsWith("application/json")
+  ) {
     body = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
   }
   return {
@@ -188,7 +192,7 @@ function expectedCall(call: CaseApiCall): RecordedCall {
     url: call.url ?? `${API_BASE_URL}${call.path ?? ""}`,
     checkedHeaders,
     authorization: call.operationId === null ? null : `Bearer ${API_KEY}`,
-    body: call.method === "PUT" ? undefined : call.body,
+    body: call.operationId === null ? undefined : call.body,
     bodySizeBytes: 0,
   };
 }

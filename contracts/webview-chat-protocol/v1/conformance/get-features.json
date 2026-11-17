@@ -23,7 +23,8 @@
           "knowledgebase": false,
           "genericIntake": false,
           "voiceDictation": true,
-          "voiceConversation": false
+          "voiceConversation": false,
+          "replyRatings": false
         }
       }
     }
@@ -36,7 +37,8 @@
       "knowledgebase": false,
       "genericIntake": false,
       "voiceDictation": true,
-      "voiceConversation": false
+      "voiceConversation": false,
+      "replyRatings": false
     }
   }
 }

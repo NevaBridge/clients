@@ -22,8 +22,13 @@ public interface INevaBridgeWebChatApi
         StartConversationRequest request,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Sends the next message as <paramref name="actorId"/>, who goes into <c>X-Actor-Id</c>. With
+    /// <c>replyRatings</c>, NevaBridge marks a reply as ratable only for the conversation's participant.
+    /// </summary>
     Task<JsonElement> AppendMessageAsync(
         string conversationId,
+        string actorId,
         AppendMessageRequest request,
         CancellationToken cancellationToken = default);
 
@@ -80,7 +85,30 @@ public interface INevaBridgeWebChatApi
         string attachmentId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Reads a conversation as <paramref name="actorId"/>; see <see cref="AppendMessageAsync"/>.</summary>
     Task<JsonElement> GetConversationAsync(
         string conversationId,
+        string actorId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Rates an assistant reply as <paramref name="actorId"/>, who must be the conversation's
+    /// participant, and returns the stored rating. Requires <c>replyRatings</c>.
+    /// </summary>
+    Task<JsonElement> SetReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
+        ReplyRatingRequest request,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes the rating of an assistant reply as <paramref name="actorId"/>. NevaBridge answers 204
+    /// without a body, also for a reply that has no rating.
+    /// </summary>
+    Task ClearReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
         CancellationToken cancellationToken = default);
 }

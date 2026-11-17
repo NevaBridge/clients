@@ -4,6 +4,14 @@
 
 ### Added
 
+- `setReplyRating` and `clearReplyRating` rate an assistant reply up or down, and remove the rating, as the user
+  `actorId` names, with `ReplyRating`, `ReplyRatingSetRequest`, `ReplyRatingValue` and `MessageRating`.
+  `client.json.setReplyRating` resolves to the API's JSON. They need the tenant's `replyRatings`.
+- `actorId` on `getConversation` and `appendMessage` sends `X-Actor-Id`. With `replyRatings`, a reply's
+  `rating.canChange` is true only when it names the conversation's participant.
+- `IntakeChatControls` and `IntakeUserMessage`: `startIntakeConversation` and `startIntakeTurn` accept
+  `chatControls`, telling the assistant whether the chat offers attaching once the reply is shown.
+
 - `startHeldIntakeConversation` starts a Generic Intake conversation with the files the reporter picked before
   writing, and returns an upload per file. The first message follows with `startIntakeTurn` at `expectedRevision` 0.
 - `createTranscriptionSession` and `synthesizeSpeech`, the voice operations, with `VoiceLanguageCode` and the
@@ -13,6 +21,9 @@
   code that relays NevaBridge answers.
 
 ### Changed
+
+- The vendored contract moves to the revision with reply ratings and `chatControls`, and whose `finish` description
+  says the closing reply uses the conversation's language.
 
 - The vendored contract moves to the revision that gives `applicationContext` a meaning. Generic Intake files the
   `environment` key as the reporter's environment and no longer asks for it, and shows the whole map to its

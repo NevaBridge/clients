@@ -6,6 +6,7 @@ export {
 export type {
   AppendMessageOptions,
   AttachmentOptions,
+  ClearReplyRatingOptions,
   CreateTranscriptionSessionOptions,
   FetchFunction,
   GetConversationOptions,
@@ -19,6 +20,7 @@ export type {
   NevaBridgeClientConfiguration,
   NevaBridgeJsonOperations,
   RequestAttachmentUploadOptions,
+  SetReplyRatingOptions,
   StartConversationOptions,
   StartHeldIntakeConversationOptions,
   StartHeldIntakeConversationRequest,
@@ -58,14 +60,19 @@ export type {IntakeTurnStarted} from "./generated/models/IntakeTurnStarted.js";
 export type {IntakeTurnStatusEvent} from "./generated/models/IntakeTurnStatusEvent.js";
 export type {IntakeTurnTextEvent} from "./generated/models/IntakeTurnTextEvent.js";
 export type {Message} from "./generated/models/Message.js";
+export type {MessageRating} from "./generated/models/MessageRating.js";
 export type {NevaBridgeError} from "./generated/models/NevaBridgeError.js";
 export type {ModelInvocationError} from "./generated/models/ModelInvocationError.js";
 export type {Report} from "./generated/models/Report.js";
+export type {ReplyRating} from "./generated/models/ReplyRating.js";
+export type {ReplyRatingSetRequest} from "./generated/models/ReplyRatingSetRequest.js";
 export type {ReporterContact} from "./generated/models/ReporterContact.js";
 export type {ReportDelivery} from "./generated/models/ReportDelivery.js";
 export type {RequestAttachmentUploadRequest} from "./generated/models/RequestAttachmentUploadRequest.js";
 export type {RequestAttachmentUploadResponse} from "./generated/models/RequestAttachmentUploadResponse.js";
 export type {StartConversationRequest} from "./generated/models/StartConversationRequest.js";
+export type {IntakeChatControls} from "./generated/models/IntakeChatControls.js";
+export type {IntakeUserMessage} from "./generated/models/IntakeUserMessage.js";
 export type {StartIntakeConversationRequest} from "./generated/models/StartIntakeConversationRequest.js";
 export type {StartIntakeTurnRequest} from "./generated/models/StartIntakeTurnRequest.js";
 export type {StorageAllowanceExceededError} from "./generated/models/StorageAllowanceExceededError.js";
@@ -91,6 +98,8 @@ export {ModelInvocationRole} from "./generated/models/ModelInvocationRole.js";
 export type {ModelInvocationRole as ModelInvocationRoleValue} from "./generated/models/ModelInvocationRole.js";
 export {ModelProvider} from "./generated/models/ModelProvider.js";
 export type {ModelProvider as ModelProviderValue} from "./generated/models/ModelProvider.js";
+export {ReplyRatingValue} from "./generated/models/ReplyRatingValue.js";
+export type {ReplyRatingValue as ReplyRatingValueValue} from "./generated/models/ReplyRatingValue.js";
 export {ReportStatus} from "./generated/models/ReportStatus.js";
 export type {ReportStatus as ReportStatusValue} from "./generated/models/ReportStatus.js";
 export {ReportStatusReason} from "./generated/models/ReportStatusReason.js";

@@ -66,15 +66,19 @@ A **request** carries an `id`, unique within the page session, and a `type`:
 Optional request types, for Generic Intake conversations (ADR 0054). A turn runs in the background,
 and the page reads its events with one `getIntakeTurnEvents` request per poll:
 
-| `type`                    | Fields                                                  | Result (API schema)         | API calls                 |
-| ------------------------- | ------------------------------------------------------- | --------------------------- | ------------------------- |
-| `startIntakeConversation` | `text`                                                  | `IntakeConversationStarted` | `startIntakeConversation` |
-| `startIntakeTurn`         | `conversationId`, `text`, `expectedRevision`, `finish?` | `IntakeTurnStarted`         | `startIntakeTurn`         |
-| `getIntakeTurnEvents`     | `turnId`, `after?`                                      | `IntakeTurnEvents`          | `getIntakeTurnEvents`     |
-| `getConversation`         | `conversationId`                                        | `ConversationDetail`        | `getConversation`         |
+| `type`                    | Fields                                                                   | Result (API schema)         | API calls                 |
+| ------------------------- | ------------------------------------------------------------------------ | --------------------------- | ------------------------- |
+| `startIntakeConversation` | `text`, `chatControls?`                                                  | `IntakeConversationStarted` | `startIntakeConversation` |
+| `startIntakeTurn`         | `conversationId`, `text`, `expectedRevision`, `finish?`, `chatControls?` | `IntakeTurnStarted`         | `startIntakeTurn`         |
+| `getIntakeTurnEvents`     | `turnId`, `after?`                                                       | `IntakeTurnEvents`          | `getIntakeTurnEvents`     |
+| `getConversation`         | `conversationId`                                                         | `ConversationDetail`        | `getConversation`         |
 
-`startIntakeTurn` sends `text` as the API's `content`, with `expectedRevision` and `finish`
-unchanged. `getIntakeTurnEvents` sends `after` unchanged when the page gives one.
+`startIntakeTurn` sends `text` as the API's `content`, with `expectedRevision`, `finish` and
+`chatControls` unchanged. `startIntakeConversation` sends `text` as the API's `userMessage.content`
+and `chatControls` as `userMessage.chatControls`. `chatControls` (`{"attachments": boolean}`) says
+whether the page offers the attach control once the reply is shown, so the assistant asks for a file
+only when the reporter can attach one; a host that drops it leaves the assistant unsure, never
+wrong. `getIntakeTurnEvents` sends `after` unchanged when the page gives one.
 
 Optional request type, for removing an attached file:
 
@@ -84,6 +88,17 @@ Optional request type, for removing an attached file:
 
 `deleteAttachment` sends `{"attachmentId": ...}` as the body. The API answers `204` without a body,
 also for a file that is already gone, and the result is the empty object.
+
+Optional request types, for rating assistant replies (`replyRatings`):
+
+| `type`             | Fields                                              | Result                 | API calls          |
+| ------------------ | --------------------------------------------------- | ---------------------- | ------------------ |
+| `setReplyRating`   | `conversationId`, `messageId`, `rating`, `comment?` | `ReplyRating`          | `setReplyRating`   |
+| `clearReplyRating` | `conversationId`, `messageId`                       | `{}` (the API's `204`) | `clearReplyRating` |
+
+`setReplyRating` sends `{"rating": ..., "comment": ...}` as the body, with `comment` only when the
+page gives one. `clearReplyRating` sends no body; the API answers `204`, also for a reply that has
+no rating, and the result is the empty object.
 
 The host answers every request with exactly one **response** carrying the same `id`:
 
@@ -104,14 +119,19 @@ The page cannot set the product, the reporter or the application context. The ho
   (required), `X-Actor-Name` and `X-Actor-Roles` when the host has them, and the host's
   `applicationContext` in the body.
 - `attachFile` sends `X-Actor-Id` to `requestAttachmentUpload`, which records the uploader.
+- `setReplyRating` and `clearReplyRating` send `X-Actor-Id`: only the conversation's participant
+  may rate, so the host names its user.
+- `getConversation` and `appendMessage` send `X-Actor-Id` too. The API marks a reply the reader
+  may rate with `rating.canChange` true only when the header names the conversation's participant;
+  without it, the page shows every rating read-only.
 - No other call carries an `X-Actor-*` header.
 
 ### Host rules
 
 - Serve the page over https only, except plain http on a loopback address during development.
 - Accept messages only from the page's own origin, and ignore any other.
-- Accept `appendMessage`, `submitReport`, `attachFile`, `startIntakeTurn`, `getConversation` and
-  `deleteAttachment` only for a conversation the page started in this session (the `conversationId` of a
+- Accept `appendMessage`, `submitReport`, `attachFile`, `startIntakeTurn`, `getConversation`,
+  `deleteAttachment`, `setReplyRating` and `clearReplyRating` only for a conversation the page started in this session (the `conversationId` of a
   `startConversation` or `startIntakeConversation` result). Answer anything else with
   `UnknownConversation` and make no API call.
 - Accept `getIntakeTurnEvents` only for a turn the host returned in this session: the `turnId` of a
@@ -157,9 +177,13 @@ therefore answer within those times, and must not assume a late result reached t
 ## Feature gates
 
 The page shows a gated control only when its feature is on in the `getFeatures` result:
-`chatAttachments` shows the attach control and the remove control of each attached file. Staff can revoke a feature while a chat is open, so the
+`chatAttachments` shows the attach control and the remove control of each attached file, and
+`replyRatings` shows the rating controls on every assistant reply that carries a `rating`. Staff can
+revoke a feature while a chat is open, so the
 page also treats a `Forbidden` answer to a gated request as the feature being off: it hides the
-control and says so. The page ignores feature keys it does not know.
+control and says so. A host that answers `setReplyRating` or `clearReplyRating` with
+`UnsupportedRequest` cannot save ratings; the page then hides the rating controls and says so. The
+page ignores feature keys it does not know.
 
 ## Conformance cases
 

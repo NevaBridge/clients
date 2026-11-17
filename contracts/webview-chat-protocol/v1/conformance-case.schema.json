@@ -68,7 +68,7 @@
             "type": ["string", "null"],
             "description": "The API operation, or null for the PUT to a presigned upload URL."
           },
-          "method": {"enum": ["GET", "POST", "PUT"]},
+          "method": {"enum": ["GET", "POST", "PUT", "DELETE"]},
           "path": {
             "type": "string",
             "description": "API path, relative to the API base URL."

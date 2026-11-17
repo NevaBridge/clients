@@ -2,6 +2,7 @@ import type {JsonValue} from "@nevabridge/sdk";
 import type {
   NevaBridgeConversations,
   PickedFile,
+  ReplyRatingInput,
   Reporter,
   StartConversationInput,
   StartIntakeConversationInput,
@@ -13,6 +14,7 @@ export const CONVERSATION_ID =
 export const REPORT_ID = "report-00000000-0000-4000-8000-000000000003";
 export const TURN_ID = "intaketurn-00000000-0000-4000-8000-000000000004";
 export const NEXT_TURN_ID = "intaketurn-00000000-0000-4000-8000-000000000005";
+export const MESSAGE_ID = "message-00000000-0000-4000-8000-000000000006";
 
 export interface RecordedCall {
   readonly operation: string;
@@ -26,6 +28,36 @@ export class FakeConversations implements NevaBridgeConversations {
   /** The turn a getConversation result names as running, if any. */
   public activeTurnId: string | null = null;
   public failWith: unknown = null;
+  public readonly setReplyRating?: NevaBridgeConversations["setReplyRating"];
+  public readonly clearReplyRating?: NevaBridgeConversations["clearReplyRating"];
+
+  /** `savesRatings` false stands for an implementation that predates reply ratings. */
+  public constructor(savesRatings = true) {
+    if (savesRatings) {
+      this.setReplyRating = async (
+        conversationId: string,
+        messageId: string,
+        actorId: string,
+        input: ReplyRatingInput,
+      ): Promise<JsonValue> => {
+        this.record("rate", {conversationId, messageId, actorId, input});
+        return {
+          conversationId,
+          messageId,
+          value: input.rating,
+          ...(input.comment === undefined ? {} : {comment: input.comment}),
+          ratedAt: "2026-11-16T09:12:00.000Z",
+        };
+      };
+      this.clearReplyRating = async (
+        conversationId: string,
+        messageId: string,
+        actorId: string,
+      ): Promise<void> => {
+        this.record("clearRating", {conversationId, messageId, actorId});
+      };
+    }
+  }
 
   public async startConversation(
     productId: string,
@@ -39,8 +71,9 @@ export class FakeConversations implements NevaBridgeConversations {
   public async appendMessage(
     conversationId: string,
     text: string,
+    actorId?: string,
   ): Promise<JsonValue> {
-    this.record("append", {conversationId, text});
+    this.record("append", {conversationId, text, actorId});
     return turn(text);
   }
 
@@ -112,8 +145,11 @@ export class FakeConversations implements NevaBridgeConversations {
     return {events: [{type: "done", revision: 1}], cursor: "1", finished: true};
   }
 
-  public async getConversation(conversationId: string): Promise<JsonValue> {
-    this.record("read", {conversationId});
+  public async getConversation(
+    conversationId: string,
+    actorId?: string,
+  ): Promise<JsonValue> {
+    this.record("read", {conversationId, actorId});
     return {
       id: CONVERSATION_ID,
       revision: 1,

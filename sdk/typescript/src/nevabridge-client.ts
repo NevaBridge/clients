@@ -21,6 +21,8 @@ import {
 import type {IntakeTurnStarted} from "./generated/models/IntakeTurnStarted.js";
 import type {RequestAttachmentUploadRequest} from "./generated/models/RequestAttachmentUploadRequest.js";
 import type {RequestAttachmentUploadResponse} from "./generated/models/RequestAttachmentUploadResponse.js";
+import type {ReplyRating} from "./generated/models/ReplyRating.js";
+import type {ReplyRatingSetRequest} from "./generated/models/ReplyRatingSetRequest.js";
 import type {StartConversationRequest} from "./generated/models/StartConversationRequest.js";
 import type {StartIntakeConversationRequest} from "./generated/models/StartIntakeConversationRequest.js";
 import type {StartIntakeTurnRequest} from "./generated/models/StartIntakeTurnRequest.js";
@@ -97,6 +99,7 @@ export interface NevaBridgeJsonOperations {
     options: CreateTranscriptionSessionOptions,
   ): Promise<JsonValue>;
   synthesizeSpeech(options: SynthesizeSpeechOptions): Promise<JsonValue>;
+  setReplyRating(options: SetReplyRatingOptions): Promise<JsonValue>;
 }
 
 export interface StartConversationOptions {
@@ -116,12 +119,38 @@ export interface ListConversationsOptions {
 
 export interface GetConversationOptions {
   readonly conversationId: string;
+  /**
+   * The user reading the conversation. With `replyRatings`, a reply's
+   * `rating.canChange` is true only when this names the conversation's
+   * participant; without it every rating reads as unchangeable.
+   */
+  readonly actorId?: string;
   readonly signal?: AbortSignal;
 }
 
 export interface AppendMessageOptions {
   readonly conversationId: string;
+  /** The user sending the message; see GetConversationOptions.actorId. */
+  readonly actorId?: string;
   readonly request: AppendMessageRequest;
+  readonly signal?: AbortSignal;
+}
+
+export interface SetReplyRatingOptions {
+  readonly conversationId: string;
+  /** The assistant reply to rate. */
+  readonly messageId: string;
+  /** The user rating it; only the conversation's participant may. */
+  readonly actorId: string;
+  readonly request: ReplyRatingSetRequest;
+  readonly signal?: AbortSignal;
+}
+
+export interface ClearReplyRatingOptions {
+  readonly conversationId: string;
+  readonly messageId: string;
+  /** The user clearing the rating; only the conversation's participant may. */
+  readonly actorId: string;
   readonly signal?: AbortSignal;
 }
 
@@ -409,6 +438,7 @@ export class NevaBridgeClient {
         this.sendCreateTranscriptionSession(options),
       ),
       synthesizeSpeech: json((options) => this.sendSynthesizeSpeech(options)),
+      setReplyRating: json((options) => this.sendSetReplyRating(options)),
     };
   }
 
@@ -614,6 +644,36 @@ export class NevaBridgeClient {
     return await this.typed(() => this.sendSynthesizeSpeech(options));
   }
 
+  /**
+   * Rates an assistant reply up or down, replacing an earlier rating; a
+   * `comment` is accepted only with `down`. Requires `replyRatings`; a user
+   * who is not the conversation's participant gets 403 `Forbidden`.
+   */
+  public async setReplyRating(
+    options: SetReplyRatingOptions,
+  ): Promise<ReplyRating> {
+    return await this.typed(() => this.sendSetReplyRating(options));
+  }
+
+  /**
+   * Removes the rating of an assistant reply. Clearing a reply that has no
+   * rating succeeds. Requires `replyRatings`.
+   */
+  public async clearReplyRating(
+    options: ClearReplyRatingOptions,
+  ): Promise<void> {
+    await this.request(() =>
+      this.conversationsApi.clearReplyRating(
+        {
+          conversationId: options.conversationId,
+          messageId: options.messageId,
+          xActorId: options.actorId,
+        },
+        {signal: options.signal},
+      ),
+    );
+  }
+
   public async deleteAttachment(options: AttachmentOptions): Promise<void> {
     await this.request(() =>
       this.attachmentsApi.deleteAttachment(
@@ -654,7 +714,21 @@ export class NevaBridgeClient {
     options: GetConversationOptions,
   ): Promise<ApiResponse<ConversationDetail>> {
     return this.conversationsApi.getConversationRaw(
-      {conversationId: options.conversationId},
+      {conversationId: options.conversationId, xActorId: options.actorId},
+      {signal: options.signal},
+    );
+  }
+
+  private sendSetReplyRating(
+    options: SetReplyRatingOptions,
+  ): Promise<ApiResponse<ReplyRating>> {
+    return this.conversationsApi.setReplyRatingRaw(
+      {
+        conversationId: options.conversationId,
+        messageId: options.messageId,
+        xActorId: options.actorId,
+        replyRatingSetRequest: options.request,
+      },
       {signal: options.signal},
     );
   }
@@ -665,6 +739,7 @@ export class NevaBridgeClient {
     return this.conversationsApi.appendMessageRaw(
       {
         conversationId: options.conversationId,
+        xActorId: options.actorId,
         appendMessageRequest: options.request,
       },
       {signal: options.signal},

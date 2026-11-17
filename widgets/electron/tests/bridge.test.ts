@@ -5,6 +5,7 @@ import type {PickedFile} from "../src/conversations.js";
 import {
   CONVERSATION_ID,
   FakeConversations,
+  MESSAGE_ID,
   NEXT_TURN_ID,
   REPORT_ID,
   TURN_ID,
@@ -177,7 +178,7 @@ describe("web chat bridge", () => {
     expect(nevaBridge.calls).toHaveLength(0);
   });
 
-  test("continues a conversation this page started", async () => {
+  test("continues a conversation this page started, as the reporter", async () => {
     // Given
     const bridge = createBridge();
     await send(bridge, {id: 1, type: "startConversation", text: "It crashes."});
@@ -193,7 +194,11 @@ describe("web chat bridge", () => {
     // Then
     expect(nevaBridge.calls[1]).toEqual({
       operation: "append",
-      args: {conversationId: CONVERSATION_ID, text: "On save."},
+      args: {
+        conversationId: CONVERSATION_ID,
+        text: "On save.",
+        actorId: "jdoe@corp.example",
+      },
     });
     expect(reply?.ok).toBe(true);
   });
@@ -254,6 +259,134 @@ describe("web chat bridge", () => {
       knowledgebase: false,
     });
   });
+
+  test("rates a reply as the reporter, whatever the page claims", async () => {
+    // Given
+    const bridge = createBridge();
+    await send(bridge, {id: 1, type: "startConversation", text: "It crashes."});
+
+    // When
+    const rated = await send(bridge, {
+      id: 2,
+      type: "setReplyRating",
+      conversationId: CONVERSATION_ID,
+      messageId: MESSAGE_ID,
+      rating: "down",
+      comment: "Asked twice.",
+      actorId: "someone-else",
+    });
+    const cleared = await send(bridge, {
+      id: 3,
+      type: "clearReplyRating",
+      conversationId: CONVERSATION_ID,
+      messageId: MESSAGE_ID,
+    });
+
+    // Then
+    expect(nevaBridge.calls.slice(1)).toEqual([
+      {
+        operation: "rate",
+        args: {
+          conversationId: CONVERSATION_ID,
+          messageId: MESSAGE_ID,
+          actorId: "jdoe@corp.example",
+          input: {rating: "down", comment: "Asked twice."},
+        },
+      },
+      {
+        operation: "clearRating",
+        args: {
+          conversationId: CONVERSATION_ID,
+          messageId: MESSAGE_ID,
+          actorId: "jdoe@corp.example",
+        },
+      },
+    ]);
+    expect(rated?.result?.["value"]).toBe("down");
+    expect(cleared?.result).toEqual({});
+  });
+
+  test.each([
+    {rating: "sideways"},
+    {rating: "down", comment: ""},
+    {rating: "up", comment: "x".repeat(1001)},
+  ])(
+    "refuses an invalid rating without calling NevaBridge: %j",
+    async (fields) => {
+      // Given
+      const bridge = createBridge();
+      await send(bridge, {
+        id: 1,
+        type: "startConversation",
+        text: "It crashes.",
+      });
+
+      // When
+      const reply = await send(bridge, {
+        id: 2,
+        type: "setReplyRating",
+        conversationId: CONVERSATION_ID,
+        messageId: MESSAGE_ID,
+        ...fields,
+      });
+
+      // Then
+      expect(reply?.error?.name).toBe("UnsupportedRequest");
+      expect(nevaBridge.calls).toHaveLength(1);
+    },
+  );
+
+  test("reports reply ratings as off and refuses ratings when the host cannot save them", async () => {
+    // Given
+    nevaBridge = new FakeConversations(false);
+    nevaBridge.features = {replyRatings: true, chatAttachments: true};
+    const bridge = createBridge();
+    await send(bridge, {id: 1, type: "startConversation", text: "It crashes."});
+
+    // When
+    const features = await send(bridge, {id: 2, type: "getFeatures"});
+    const rated = await send(bridge, {
+      id: 3,
+      type: "setReplyRating",
+      conversationId: CONVERSATION_ID,
+      messageId: MESSAGE_ID,
+      rating: "up",
+    });
+    const cleared = await send(bridge, {
+      id: 4,
+      type: "clearReplyRating",
+      conversationId: CONVERSATION_ID,
+      messageId: MESSAGE_ID,
+    });
+
+    // Then
+    expect(features?.result).toEqual({
+      replyRatings: false,
+      chatAttachments: true,
+    });
+    expect(rated?.error?.name).toBe("UnsupportedRequest");
+    expect(cleared?.error?.name).toBe("UnsupportedRequest");
+  });
+
+  test.each([{attachments: "yes"}, {attachments: true, voice: true}, [true]])(
+    "refuses chatControls that are not just attachments: %j",
+    async (chatControls) => {
+      // Given
+      const bridge = createBridge();
+
+      // When
+      const reply = await send(bridge, {
+        id: 1,
+        type: "startIntakeConversation",
+        text: "It crashes.",
+        chatControls,
+      });
+
+      // Then
+      expect(reply?.error?.name).toBe("UnsupportedRequest");
+      expect(nevaBridge.calls).toHaveLength(0);
+    },
+  );
 
   test("attaches the file the user picked, uploaded as the reporter", async () => {
     // Given

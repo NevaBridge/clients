@@ -120,6 +120,10 @@ internal enum SpokenSendOutcome
 public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
 {
     private const int MaximumPollRetries = 3;
+
+    /// <summary>The most files NevaBridge accepts in one conversation.</summary>
+    private const int MaxAttachmentsPerConversation = 10;
+
     private static readonly TimeSpan PollRetryPause = TimeSpan.FromSeconds(1);
 
     private readonly INevaBridgeIntakeConversations _conversations;
@@ -306,6 +310,13 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
     public string? FinishHint =>
         _conversationId is not null && _revision > 0 && !IsEnded && !string.IsNullOrWhiteSpace(Draft) ? IntakeChatText.FinishBlocked : null;
 
+    /// <summary>
+    /// What the chat offers once the reply to the turn being sent is shown: the attach control, while
+    /// attachments are on and the conversation holds fewer files than NevaBridge accepts.
+    /// </summary>
+    private IntakeChatControls ChatControls =>
+        new(OffersAttachments && Attachments.Count < MaxAttachmentsPerConversation);
+
     /// <summary>Whether this chat offers attachments at all; <see cref="CanAttach"/> says whether now.</summary>
     public bool OffersAttachments => _options.PickFile is not null && !_attachmentsOff;
 
@@ -406,7 +417,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
             started = await _conversations.StartIntakeConversationAsync(
                 _productId,
                 _reporter,
-                new StartIntakeConversationRequest(new UserMessage(text))
+                new StartIntakeConversationRequest(new UserMessage(text) { ChatControls = ChatControls })
                 {
                     ApplicationContext = _options.ApplicationContext,
                     ReporterContact = _options.ReporterContact,
@@ -432,7 +443,7 @@ public sealed class IntakeChatViewModel : INotifyPropertyChanged, IDisposable
         {
             started = await _conversations.StartIntakeTurnAsync(
                 conversationId,
-                new StartIntakeTurnRequest(text, _revision) { Finish = finish ? true : null },
+                new StartIntakeTurnRequest(text, _revision) { Finish = finish ? true : null, ChatControls = ChatControls },
                 _closing.Token);
         }
         catch (NevaBridgeApiException error) when (error is { ErrorName: "IntakeTurnRunning", TurnId: not null })

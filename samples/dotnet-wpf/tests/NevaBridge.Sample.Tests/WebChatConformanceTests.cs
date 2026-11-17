@@ -234,13 +234,14 @@ public sealed class WebChatConformanceTests
             IEnumerable<(string, string)> headers = request.Headers
                 .Concat(request.Content?.Headers ?? Enumerable.Empty<KeyValuePair<string, IEnumerable<string>>>())
                 .Select(header => (header.Key, string.Join(",", header.Value)));
-            bool put = request.Method == HttpMethod.Put;
+            // An upload to a presigned address carries the file's bytes; every API call carries JSON.
+            bool json = request.Content?.Headers.ContentType?.MediaType == "application/json";
             Recorded.Add(new RecordedCall(
                 request.Method.Method,
                 request.RequestUri!.AbsoluteUri,
                 Headers(headers),
                 request.Headers.Authorization?.ToString(),
-                put || bytes.Length == 0 ? null : Canonical(JsonNode.Parse(bytes)!),
+                !json || bytes.Length == 0 ? null : Canonical(JsonNode.Parse(bytes)!),
                 bytes.Length));
 
             if (!_caseAnswers.TryDequeue(out JsonObject? answer))

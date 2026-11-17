@@ -10,7 +10,19 @@ public sealed record UserMessage(string Content)
 
     /// <summary>A BCP 47 tag such as "de" that fixes the reply language for this turn.</summary>
     public string? ResponseLanguage { get; init; }
+
+    /// <summary>
+    /// Generic Intake only: the controls the chat offers once the reply is shown. Leave it null in a
+    /// classic conversation.
+    /// </summary>
+    public IntakeChatControls? ChatControls { get; init; }
 }
+
+/// <summary>
+/// The controls a Generic Intake chat offers once the reply to a turn is shown, so the assistant
+/// asks for a file only when the reporter can attach one. Without it the assistant asks for none.
+/// </summary>
+public sealed record IntakeChatControls(bool Attachments);
 
 public sealed record ReporterRole(string Name, string Description);
 
@@ -111,6 +123,17 @@ public sealed record StartIntakeTurnRequest(string Content, int ExpectedRevision
 {
     /// <summary>Ends the conversation with this message.</summary>
     public bool? Finish { get; init; }
+
+    /// <inheritdoc cref="IntakeChatControls"/>
+    public IntakeChatControls? ChatControls { get; init; }
+}
+
+/// <summary>A thumbs up or down on an assistant reply.</summary>
+/// <param name="Rating"><c>up</c> or <c>down</c>.</param>
+public sealed record ReplyRatingRequest(string Rating)
+{
+    /// <summary>Why the reply did not help; only with <c>down</c>, at most 1000 characters.</summary>
+    public string? Comment { get; init; }
 }
 
 public sealed record AppendMessageRequest(string Content)

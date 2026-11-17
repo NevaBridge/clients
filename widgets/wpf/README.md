@@ -342,7 +342,8 @@ The bridge speaks version 1 of the webview chat bridge protocol, pinned in this 
 `contracts/webview-chat-protocol/`, and passes every conformance case there. That includes the Generic
 Intake requests: when your tenant has Generic Intake, the hosted page runs a Generic Intake
 conversation through the bridge, polling each turn. It also answers `deleteAttachment`, so the
-page can remove an attached file. The bundled copy runs the classic chat.
+page can remove an attached file, and `setReplyRating` and `clearReplyRating`, so the user can rate
+the assistant's replies when the tenant has `replyRatings`. The bundled copy runs the classic chat.
 
 ## 3. Bundle or host your own copy
 

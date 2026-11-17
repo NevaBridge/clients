@@ -202,7 +202,7 @@ agent should also read the repository's [`AGENTS.md`](../../AGENTS.md#maintainin
    | `StartHeldIntakeConversationAsync` | `POST /v1/products/{productId}/intake-conversations` with `attachments` and the `X-Actor-*` headers |
    | `RequestAttachmentUploadAsync` | `POST /v1/conversations/{conversationId}/actions/request-attachment-upload` with `X-Actor-Id` |
    | `UploadAttachmentAsync`        | `PUT` to the returned `uploadUrl`, then `POST /v1/conversations/{conversationId}/actions/confirm-attachment-upload` |
-   | `StartIntakeTurnAsync`         | `POST /v1/intake-conversations/{conversationId}/turns`                            |
+   | `StartIntakeTurnAsync`         | `POST /v1/intake-conversations/{conversationId}/turns`, with `chatControls`       |
    | `GetIntakeTurnEventsAsync`     | `GET /v1/intake-turns/{turnId}/events?after={cursor}&wait=20`                     |
    | `GetConversationAsync`         | `GET /v1/conversations/{conversationId}`                                          |
    | `DeleteAttachmentAsync`        | `POST /v1/conversations/{conversationId}/actions/delete-attachment`               |

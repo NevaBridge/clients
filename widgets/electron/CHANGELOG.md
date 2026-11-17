@@ -7,6 +7,15 @@ conformance case of the pinned protocol.
 
 ### Added
 
+- The optional requests `setReplyRating` and `clearReplyRating`, which rate an assistant reply as the
+  reporter, for a conversation the page started. `createSdkConversations` implements them. A
+  `NevaBridgeConversations` implementation of your own may leave them out: the bridge then reports
+  `replyRatings` as off and the page offers no rating.
+- `appendMessage` and `getConversation` name the reporter (`actorId`), so NevaBridge marks the
+  reporter's own replies as ratable. An implementation of your own should send it as `X-Actor-Id`.
+- `chatControls` on `startIntakeConversation` and `startIntakeTurn`, passed on from the page as the
+  protocol says (`ChatControls`).
+
 - The optional request `deleteAttachment`, which removes a file the page attached, for a
   conversation the page started; the hosted page offers removal once a host answers it. A
   `NevaBridgeConversations` implementation of your own needs `deleteAttachment` too;

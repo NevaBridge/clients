@@ -29,6 +29,7 @@ public sealed class WebChatBridge
     private const int MaxMessageLength = 32768;
     private const int MaxRequestIdLength = 64;
     private const int MaxCursorLength = 1024;
+    private const int MaxRatingCommentLength = 1000;
 
     private static readonly HashSet<string> RetryableModelFailures = new(StringComparer.Ordinal)
     {
@@ -148,6 +149,8 @@ public sealed class WebChatBridge
             "getIntakeTurnEvents" => GetTurnEventsAsync(id, request, cancellationToken),
             "getConversation" => GetConversationAsync(id, request, cancellationToken),
             "deleteAttachment" => DeleteAttachmentAsync(id, request, cancellationToken),
+            "setReplyRating" => SetReplyRatingAsync(id, request, cancellationToken),
+            "clearReplyRating" => ClearReplyRatingAsync(id, request, cancellationToken),
             _ => throw new UnsupportedRequestException("This request type is not supported."),
         };
 
@@ -186,7 +189,8 @@ public sealed class WebChatBridge
 
         return Success(
             id,
-            await _api.AppendMessageAsync(conversationId, new AppendMessageRequest(text), cancellationToken).ConfigureAwait(false));
+            await _api.AppendMessageAsync(conversationId, _reporter.Id, new AppendMessageRequest(text), cancellationToken)
+                .ConfigureAwait(false));
     }
 
     private async Task<string> SubmitAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
@@ -243,10 +247,14 @@ public sealed class WebChatBridge
     private async Task<string> StartIntakeAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
     {
         string text = ReadText(request);
+        IntakeChatControls? chatControls = ReadChatControls(request);
         JsonElement started = await _api.StartIntakeConversationAsync(
             _productId,
             _reporter,
-            new StartIntakeConversationRequest(new UserMessage(text)) { ApplicationContext = _applicationContext },
+            new StartIntakeConversationRequest(new UserMessage(text) { ChatControls = chatControls })
+            {
+                ApplicationContext = _applicationContext,
+            },
             cancellationToken).ConfigureAwait(false);
         Remember(_startedConversations, ReadString(started, "conversationId"));
         Remember(_startedTurns, ReadString(started, "turnId"));
@@ -276,6 +284,7 @@ public sealed class WebChatBridge
             finish = finishFlag;
         }
 
+        IntakeChatControls? chatControls = ReadChatControls(request);
         if (conversationId is null)
         {
             return UnknownConversation(id);
@@ -283,7 +292,7 @@ public sealed class WebChatBridge
 
         JsonElement started = await _api.StartIntakeTurnAsync(
             conversationId,
-            new StartIntakeTurnRequest(text, expectedRevision) { Finish = finish },
+            new StartIntakeTurnRequest(text, expectedRevision) { Finish = finish, ChatControls = chatControls },
             cancellationToken).ConfigureAwait(false);
         Remember(_startedTurns, ReadString(started, "turnId"));
         return Success(id, started);
@@ -321,7 +330,8 @@ public sealed class WebChatBridge
             return UnknownConversation(id);
         }
 
-        JsonElement detail = await _api.GetConversationAsync(conversationId, cancellationToken).ConfigureAwait(false);
+        JsonElement detail = await _api.GetConversationAsync(conversationId, _reporter.Id, cancellationToken)
+            .ConfigureAwait(false);
         Remember(_startedTurns, ReadString(detail, "activeTurnId"));
         return Success(id, detail);
     }
@@ -335,6 +345,52 @@ public sealed class WebChatBridge
 
         await _api.DeleteAttachmentAsync(conversationId, ReadRequiredString(request, "attachmentId"), cancellationToken)
             .ConfigureAwait(false);
+
+        // The API answers 204 without a body; the protocol's result for it is the empty object.
+        return Success(id, new JsonObject());
+    }
+
+    private async Task<string> SetReplyRatingAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
+    {
+        string? conversationId = ReadStartedConversation(request);
+        string messageId = ReadRequiredString(request, "messageId");
+        string? rating = ReadString(request, "rating");
+        if (rating is not ("up" or "down"))
+        {
+            throw new UnsupportedRequestException("rating must be up or down.");
+        }
+
+        string? comment = ReadString(request, "comment");
+        if (request["comment"] is not null && comment is not { Length: > 0 and <= MaxRatingCommentLength })
+        {
+            throw new UnsupportedRequestException($"comment must contain 1 to {MaxRatingCommentLength} characters.");
+        }
+
+        if (conversationId is null)
+        {
+            return UnknownConversation(id);
+        }
+
+        return Success(
+            id,
+            await _api.SetReplyRatingAsync(
+                conversationId,
+                messageId,
+                _reporter.Id,
+                new ReplyRatingRequest(rating) { Comment = comment },
+                cancellationToken).ConfigureAwait(false));
+    }
+
+    private async Task<string> ClearReplyRatingAsync(JsonValue id, JsonObject request, CancellationToken cancellationToken)
+    {
+        string? conversationId = ReadStartedConversation(request);
+        string messageId = ReadRequiredString(request, "messageId");
+        if (conversationId is null)
+        {
+            return UnknownConversation(id);
+        }
+
+        await _api.ClearReplyRatingAsync(conversationId, messageId, _reporter.Id, cancellationToken).ConfigureAwait(false);
 
         // The API answers 204 without a body; the protocol's result for it is the empty object.
         return Success(id, new JsonObject());
@@ -383,6 +439,24 @@ public sealed class WebChatBridge
         ReadString(request, "text")?.Trim() is { Length: > 0 and <= MaxMessageLength } text
             ? text
             : throw new UnsupportedRequestException($"text must contain 1 to {MaxMessageLength} characters.");
+
+    private static IntakeChatControls? ReadChatControls(JsonObject request)
+    {
+        if (request["chatControls"] is null)
+        {
+            return null;
+        }
+
+        if (request["chatControls"] is not JsonObject controls
+            || controls.Count != 1
+            || controls["attachments"] is not JsonValue attachmentsValue
+            || !attachmentsValue.TryGetValue(out bool attachments))
+        {
+            throw new UnsupportedRequestException("chatControls must be an object with only attachments: true or false.");
+        }
+
+        return new IntakeChatControls(attachments);
+    }
 
     private static string ReadRequiredString(JsonObject request, string name) =>
         ReadString(request, name) is { Length: > 0 } value

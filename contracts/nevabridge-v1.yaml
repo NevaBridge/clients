@@ -61,6 +61,13 @@ info:
     with `getConversation`. Every request stays short, so no turn depends on a
     request's time limit. `getIntakeTurnEvents` describes the polling rules.
 
+    - `replyRatings`: `setReplyRating` and `clearReplyRating`, with which the
+      conversation's participant gives a reply a thumbs up or down, and
+      `getConversation`, which then shows each reply's `rating`. Without it
+      the two operations answer 403 `Forbidden` and `getConversation` shows
+      no ratings; ratings stored before stay stored and reappear once the
+      feature is on again.
+
     `getFeatures` reports which of these features the tenant has right now.
 
     Every other behavior in this document is the same for all tenants.
@@ -103,15 +110,19 @@ paths:
         assistant's reply, and the reports the turn produced.
 
         This is the only operation that establishes the reporter's identity, so
-        `X-Actor-Id` is required here and not accepted as an identity on later
-        calls. (`requestAttachmentUpload` reads it separately, to label who
-        uploaded a file.)
+        `X-Actor-Id` is required here, and no later call changes the reporter.
+        (`requestAttachmentUpload` reads it separately, to label who uploaded a
+        file, and `setReplyRating` and `clearReplyRating` read it to recognize
+        the participant.)
 
         With the `knowledgebase` entitlement, the assistant's reply may draw on
         the tenant's knowledge base, limited to the documents `X-Actor-Roles`
         grants. Without it, the turn runs without retrieval.
+
+        With the `replyRatings` entitlement, the reply carries an unrated
+        `rating` the participant can change.
       tags: [Conversations]
-      x-nevabridge-entitlements: [knowledgebase]
+      x-nevabridge-entitlements: [knowledgebase, replyRatings]
       parameters:
         - $ref: "#/components/parameters/ProductId"
         - $ref: "#/components/parameters/ActorId"
@@ -741,12 +752,16 @@ paths:
         Reading needs no entitlement. `reporterId` is returned so the tenant's
         backend can apply its own rules about who may see a conversation;
         NevaBridge does not apply any.
+        With the `replyRatings` entitlement, every assistant reply that can be
+        rated carries `rating`; its `canChange` is true only when the request's
+        `X-Actor-Id` names the conversation's participant.
         A conversation from the first Generic Intake version, which predates
         this API, answers 400.
       tags: [Conversations]
-      x-nevabridge-entitlements: [genericIntake]
+      x-nevabridge-entitlements: [genericIntake, replyRatings]
       parameters:
         - $ref: "#/components/parameters/ConversationIdPath"
+        - $ref: "#/components/parameters/ViewerActorId"
       responses:
         "200":
           description: The conversation, its messages, and its reports.
@@ -788,18 +803,23 @@ paths:
         read.
 
         The reporter's identity was fixed when the conversation started, so
-        `X-Actor-Id` is neither required nor read here.
+        `X-Actor-Id` is not required here and never changes the reporter.
 
         With the `knowledgebase` entitlement, the reply may draw on the tenant's
         knowledge base as described for `startConversation`.
+
+        With the `replyRatings` entitlement, the reply carries an unrated
+        `rating`, whose `canChange` is true only when `X-Actor-Id` names the
+        conversation's participant.
 
         A Generic Intake conversation answers 400 and adds nothing: its turns
         run in the background through `startIntakeTurn`, which the message
         names.
       tags: [Conversations]
-      x-nevabridge-entitlements: [knowledgebase]
+      x-nevabridge-entitlements: [knowledgebase, replyRatings]
       parameters:
         - $ref: "#/components/parameters/ConversationIdPath"
+        - $ref: "#/components/parameters/ViewerActorId"
       requestBody:
         required: true
         content:
@@ -849,6 +869,131 @@ paths:
           $ref: "#/components/responses/DependencyFailure"
         "429":
           $ref: "#/components/responses/ModelInvocationFailure"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/EdgeFailure"
+        "504":
+          $ref: "#/components/responses/EdgeFailure"
+
+  /v1/conversations/{conversationId}/messages/{messageId}/rating:
+    put:
+      operationId: setReplyRating
+      summary: Rate a reply
+      description: |
+        Gives one assistant reply a thumbs up or a thumbs down for the
+        conversation's participant, replacing any rating it had. A thumbs
+        down may carry a comment of 1 to 1000 characters after trimming; a
+        thumbs up carries none, so switching to it removes the comment.
+
+        Only the participant rates: `X-Actor-Id` must name the actor that
+        started the conversation, its `reporterId`. The rating works on
+        archived conversations, on conversations whose report was submitted
+        and while a turn runs, and charges no credits.
+
+        Requires the `replyRatings` entitlement (403 otherwise).
+      tags: [Conversations]
+      x-nevabridge-entitlements: [replyRatings]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+        - $ref: "#/components/parameters/MessageIdPath"
+        - $ref: "#/components/parameters/RaterActorId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReplyRatingSetRequest"
+            examples:
+              up:
+                summary: A thumbs up
+                value:
+                  rating: up
+              downWithComment:
+                summary: A thumbs down with the reason
+                value:
+                  rating: down
+                  comment: It asked for the browser twice.
+      responses:
+        "200":
+          description: The rating as stored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplyRating"
+        "400":
+          description: |
+            The body failed validation (`ValidationFailed`), or the rating was
+            refused (`ReplyRatingRefused`): `X-Actor-Id` is missing, the
+            conversation or message does not exist, the message is not a reply
+            that can be rated, the comment breaks its rules, or the
+            conversation is being deleted. The message says which.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            The tenant does not have `replyRatings`, or `X-Actor-Id` names
+            someone other than the conversation's participant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: |
+            Other changes to the conversation, such as a turn being saved,
+            kept overlapping the rating (`ReplyRatingConflict`). Nothing was
+            stored; send the rating again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+        "502":
+          $ref: "#/components/responses/EdgeFailure"
+        "504":
+          $ref: "#/components/responses/EdgeFailure"
+    delete:
+      operationId: clearReplyRating
+      summary: Clear a reply's rating
+      description: |
+        Removes the participant's rating of one reply, with its comment.
+        Clearing a reply that has no rating answers 204 too. `X-Actor-Id` must
+        name the conversation's participant, as for `setReplyRating`.
+
+        Requires the `replyRatings` entitlement (403 otherwise).
+      tags: [Conversations]
+      x-nevabridge-entitlements: [replyRatings]
+      parameters:
+        - $ref: "#/components/parameters/ConversationIdPath"
+        - $ref: "#/components/parameters/MessageIdPath"
+        - $ref: "#/components/parameters/RaterActorId"
+      responses:
+        "204":
+          description: The reply has no rating.
+        "400":
+          description: |
+            The rating was refused (`ReplyRatingRefused`): `X-Actor-Id` is
+            missing, or the conversation does not exist. The message says
+            which.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: |
+            The tenant does not have `replyRatings`, or `X-Actor-Id` names
+            someone other than the conversation's participant.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "500":
           $ref: "#/components/responses/InternalServerError"
         "502":
@@ -1497,6 +1642,40 @@ components:
           $ref: "#/components/schemas/ActorRole"
       example: [anonymous, customer]
 
+    MessageIdPath:
+      name: messageId
+      in: path
+      required: true
+      description: The assistant reply to rate, from the conversation's `messages`.
+      schema:
+        type: string
+      example: message-3b9e2f10-7c1d-4e8a-a6b5-0f1e2d3c4b5a
+
+    RaterActorId:
+      name: X-Actor-Id
+      in: header
+      required: true
+      description: |
+        The conversation's participant, as stored in its `reporterId`. Only
+        the participant can rate the conversation's replies.
+      schema:
+        type: string
+        minLength: 1
+      example: user-4821
+
+    ViewerActorId:
+      name: X-Actor-Id
+      in: header
+      required: false
+      description: |
+        Who is reading. With the `replyRatings` entitlement, a reply's
+        `rating.canChange` is true only when this names the conversation's
+        participant. Not needed otherwise.
+      schema:
+        type: string
+        minLength: 1
+      example: user-4821
+
     UploaderActorId:
       name: X-Actor-Id
       in: header
@@ -1746,6 +1925,45 @@ components:
       required: [content]
       additionalProperties: false
 
+    IntakeChatControls:
+      type: object
+      description: |
+        The controls the reporter's chat offers once the reply to this turn is
+        shown, so the assistant asks only for what the reporter can give. Send
+        it with every turn, since a chat can stop offering a control during the
+        conversation, for example at the file limit. Without it the assistant
+        treats the controls as unknown: it asks for no file, and asked whether
+        files can be attached, says it cannot tell. A tenant without the
+        `chatAttachments` feature takes no files, whatever this says.
+      properties:
+        attachments:
+          type: boolean
+          description: The chat shows a control to attach files.
+      required: [attachments]
+      additionalProperties: false
+
+    IntakeUserMessage:
+      type: object
+      description: The reporter's first message of a Generic Intake conversation.
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 32768
+          description: What the reporter wrote, verbatim.
+        writerModelKey:
+          description: Selects the writer for the conversation; later turns may repeat it but cannot change it (400).
+          anyOf:
+            - $ref: "#/components/schemas/WriterModelKey"
+            - type: "null"
+        responseLanguage:
+          type: string
+          description: Optional BCP 47 response language for this turn. A valid tag takes precedence over automatic detection. An invalid tag is ignored.
+        chatControls:
+          $ref: "#/components/schemas/IntakeChatControls"
+      required: [content]
+      additionalProperties: false
+
     ReporterRole:
       type: object
       description: |
@@ -1823,7 +2041,7 @@ components:
         message).
       properties:
         userMessage:
-          $ref: "#/components/schemas/UserMessage"
+          $ref: "#/components/schemas/IntakeUserMessage"
         attachments:
           type: array
           description: |
@@ -1864,7 +2082,62 @@ components:
         createdAt:
           type: string
           format: date-time
+        rating:
+          $ref: "#/components/schemas/MessageRating"
       required: [id, conversationId, role, content, createdAt]
+      additionalProperties: false
+
+    ReplyRatingValue:
+      type: string
+      description: A thumbs up or a thumbs down.
+      enum: [up, down]
+
+    MessageRating:
+      type: object
+      description: |
+        A reply's rating. Present on every assistant reply that can be rated
+        while the tenant has `replyRatings`, and absent otherwise: on user
+        messages, on a reply that failed or closes a finished conversation,
+        and for tenants without the feature.
+      properties:
+        value:
+          $ref: "#/components/schemas/ReplyRatingValue"
+          description: Absent while the reply is unrated.
+        comment:
+          type: string
+          description: The participant's reason, only with `down`.
+        canChange:
+          type: boolean
+          description: True when the reader is the participant, who alone sets or clears the rating.
+      required: [canChange]
+      additionalProperties: false
+
+    ReplyRatingSetRequest:
+      type: object
+      properties:
+        rating:
+          $ref: "#/components/schemas/ReplyRatingValue"
+        comment:
+          type: string
+          description: Only with `down`. Trimmed; then 1 to 1000 characters.
+      required: [rating]
+      additionalProperties: false
+
+    ReplyRating:
+      type: object
+      properties:
+        conversationId:
+          $ref: "#/components/schemas/ConversationId"
+        messageId:
+          type: string
+        value:
+          $ref: "#/components/schemas/ReplyRatingValue"
+        comment:
+          type: string
+        ratedAt:
+          type: string
+          format: date-time
+      required: [conversationId, messageId, value, ratedAt]
       additionalProperties: false
 
     ReportStatusReason:
@@ -2103,7 +2376,7 @@ components:
           description: Optional BCP 47 response language for this turn. A valid tag takes precedence over automatic detection. An invalid tag is ignored.
         finish:
           type: boolean
-          description: Ends the conversation and files every draft without a model call.
+          description: Ends the conversation and files every draft without a model call. The fixed closing reply is written in the language the assistant last replied in; `responseLanguage` applies only when the conversation recorded none.
         expectedRevision:
           type: integer
           minimum: 0
@@ -2111,6 +2384,8 @@ components:
             The `revision` of the last `getConversation` read, or of the last
             turn's `done` event. A conversation that has moved past it answers
             409 `RevisionConflict` and adds nothing.
+        chatControls:
+          $ref: "#/components/schemas/IntakeChatControls"
       required: [content, expectedRevision]
       additionalProperties: false
 
@@ -2582,7 +2857,10 @@ components:
         voiceConversation:
           type: boolean
           description: "`createTranscriptionSession` and `synthesizeSpeech` are available, for the hands-free conversation."
-      required: [chatAttachments, knowledgebase, genericIntake, voiceDictation, voiceConversation]
+        replyRatings:
+          type: boolean
+          description: "`setReplyRating` and `clearReplyRating` are available, and `getConversation` shows each reply's rating."
+      required: [chatAttachments, knowledgebase, genericIntake, voiceDictation, voiceConversation, replyRatings]
       additionalProperties:
         type: boolean
 

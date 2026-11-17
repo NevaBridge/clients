@@ -86,6 +86,25 @@ public sealed class IntakeChatViewModelTests
         Assert.Equal(context, request.ApplicationContext);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void The_first_message_tells_the_assistant_whether_the_chat_offers_attaching(bool canPickFiles)
+    {
+        // Given
+        FakeIntakeConversations nevaBridge = Started();
+        IntakeChatViewModel chat = Chat(
+            nevaBridge,
+            new IntakeChatOptions { PickFile = canPickFiles ? () => Task.FromResult<PickedFile?>(null) : null });
+
+        // When
+        Send(chat, "It crashes.");
+
+        // Then
+        StartIntakeConversationRequest request = Assert.IsType<StartIntakeConversationRequest>(nevaBridge.Calls[0].Arguments["request"]);
+        Assert.Equal(new IntakeChatControls(canPickFiles), request.UserMessage.ChatControls);
+    }
+
     [Fact]
     public void Without_contact_details_the_first_message_carries_none()
     {
@@ -118,7 +137,7 @@ public sealed class IntakeChatViewModelTests
         // Then
         RecordedCall turn = nevaBridge.Calls.Single(c => c.Operation == "startIntakeTurn");
         Assert.Equal(ConversationId, turn.Arguments["conversationId"]);
-        Assert.Equal(new StartIntakeTurnRequest("On save.", 1), turn.Arguments["request"]);
+        Assert.Equal(new StartIntakeTurnRequest("On save.", 1) { ChatControls = new IntakeChatControls(false) }, turn.Arguments["request"]);
         Assert.Equal(NextTurnId, nevaBridge.Calls.Last(c => c.Operation == "getIntakeTurnEvents").Arguments["turnId"]);
         Assert.Equal(4, chat.Messages.Count);
         Assert.Equal(string.Empty, chat.Draft);
@@ -372,7 +391,7 @@ public sealed class IntakeChatViewModelTests
 
         // Then
         Assert.Equal(
-            new StartIntakeTurnRequest(IntakeChatText.FinishMessage, 1) { Finish = true },
+            new StartIntakeTurnRequest(IntakeChatText.FinishMessage, 1) { Finish = true, ChatControls = new IntakeChatControls(false) },
             nevaBridge.Calls.Single(c => c.Operation == "startIntakeTurn").Arguments["request"]);
         Assert.True(chat.IsEnded);
         Assert.Equal(IntakeChatText.Ended, chat.EndedText);

@@ -17,7 +17,9 @@
       "operationId": "appendMessage",
       "method": "POST",
       "path": "/v1/conversations/conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c/messages",
-      "headers": {},
+      "headers": {
+        "X-Actor-Id": "user-4821"
+      },
       "body": {
         "content": "It says 'Server unavailable'."
       },

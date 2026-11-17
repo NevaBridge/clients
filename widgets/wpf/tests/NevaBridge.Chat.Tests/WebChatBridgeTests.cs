@@ -12,6 +12,7 @@ public sealed class WebChatBridgeTests
     private const string ReportId = FakeWebChatApi.ReportId;
     private const string TurnId = FakeWebChatApi.TurnId;
     private const string NextTurnId = FakeWebChatApi.NextTurnId;
+    private const string MessageId = FakeWebChatApi.MessageId;
 
     private static readonly Uri PageOrigin = new("https://webchat.nevabridge.example/");
     private static readonly Uri PageUrl = new("https://webchat.nevabridge.example/index.html");
@@ -159,7 +160,7 @@ public sealed class WebChatBridgeTests
     }
 
     [Fact]
-    public async Task A_follow_up_continues_a_conversation_this_page_started()
+    public async Task A_follow_up_continues_a_conversation_this_page_started_as_the_reporter()
     {
         // Given
         WebChatBridge bridge = CreateBridge();
@@ -173,7 +174,70 @@ public sealed class WebChatBridgeTests
         // Then
         Assert.Equal("append", _nevaBridge.Calls[1].Operation);
         Assert.Equal(ConversationId, _nevaBridge.Calls[1].Arguments["conversationId"]);
+        Assert.Equal("CORP\\jdoe", _nevaBridge.Calls[1].Arguments["actorId"]);
         Assert.True(Ok(response));
+    }
+
+    [Fact]
+    public async Task A_reply_is_rated_and_cleared_as_the_reporter_whatever_the_page_claims()
+    {
+        // Given
+        WebChatBridge bridge = CreateBridge();
+        await bridge.HandleAsync(PageUrl, """{"id":1,"type":"startConversation","text":"It crashes."}""");
+
+        // When
+        string? rated = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":2,"type":"setReplyRating","conversationId":"{{ConversationId}}","messageId":"{{MessageId}}","rating":"down","comment":"Asked twice.","actorId":"someone-else"}""");
+        string? cleared = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":3,"type":"clearReplyRating","conversationId":"{{ConversationId}}","messageId":"{{MessageId}}"}""");
+
+        // Then
+        Assert.Equal("rate", _nevaBridge.Calls[1].Operation);
+        Assert.Equal(MessageId, _nevaBridge.Calls[1].Arguments["messageId"]);
+        Assert.Equal("CORP\\jdoe", _nevaBridge.Calls[1].Arguments["actorId"]);
+        Assert.Equal(new ReplyRatingRequest("down") { Comment = "Asked twice." }, _nevaBridge.Calls[1].Arguments["request"]);
+        Assert.Equal("clearRating", _nevaBridge.Calls[2].Operation);
+        Assert.Equal("CORP\\jdoe", _nevaBridge.Calls[2].Arguments["actorId"]);
+        Assert.True(Ok(rated));
+        Assert.True(Ok(cleared));
+    }
+
+    [Theory]
+    [InlineData(""" "rating":"sideways" """)]
+    [InlineData(""" "rating":"down","comment":"" """)]
+    [InlineData(""" "rating":"up","comment":7 """)]
+    public async Task A_rating_outside_the_protocol_is_refused_without_an_API_call(string fields)
+    {
+        // Given
+        WebChatBridge bridge = CreateBridge();
+        await bridge.HandleAsync(PageUrl, """{"id":1,"type":"startConversation","text":"It crashes."}""");
+
+        // When
+        string? response = await bridge.HandleAsync(
+            PageUrl,
+            $$"""{"id":2,"type":"setReplyRating","conversationId":"{{ConversationId}}","messageId":"{{MessageId}}",{{fields}}}""");
+
+        // Then
+        Assert.Single(_nevaBridge.Calls);
+        Assert.Equal("UnsupportedRequest", ErrorName(response));
+    }
+
+    [Theory]
+    [InlineData("""{"attachments":"yes"}""")]
+    [InlineData("""{"attachments":true,"voice":true}""")]
+    [InlineData("[true]")]
+    public async Task Chat_controls_other_than_attachments_are_refused_without_an_API_call(string chatControls)
+    {
+        // When
+        string? response = await CreateBridge().HandleAsync(
+            PageUrl,
+            $$"""{"id":1,"type":"startIntakeConversation","text":"It crashes.","chatControls":{{chatControls}}}""");
+
+        // Then
+        Assert.Empty(_nevaBridge.Calls);
+        Assert.Equal("UnsupportedRequest", ErrorName(response));
     }
 
     [Theory]

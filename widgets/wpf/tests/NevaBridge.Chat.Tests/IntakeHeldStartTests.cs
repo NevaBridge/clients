@@ -135,7 +135,7 @@ public sealed class IntakeHeldStartTests
         Assert.DoesNotContain("startIntakeConversation", nevaBridge.Operations);
         RecordedCall turn = nevaBridge.Calls.Single(c => c.Operation == "startIntakeTurn");
         Assert.Equal(ConversationId, turn.Arguments["conversationId"]);
-        Assert.Equal(new StartIntakeTurnRequest("It crashes.", 0), turn.Arguments["request"]);
+        Assert.Equal(new StartIntakeTurnRequest("It crashes.", 0) { ChatControls = new IntakeChatControls(true) }, turn.Arguments["request"]);
         Assert.Contains("Looking at the attached images", progress);
         Assert.Equal(
             [new ChatMessageItem("It crashes.", true), new ChatMessageItem("I see the log.", false)],
@@ -169,7 +169,7 @@ public sealed class IntakeHeldStartTests
         upload.SetResult(LogAttached);
         await attaching;
         await sending;
-        Assert.Equal(new StartIntakeTurnRequest("It crashes.", 0), nevaBridge.Calls.Single(c => c.Operation == "startIntakeTurn").Arguments["request"]);
+        Assert.Equal(new StartIntakeTurnRequest("It crashes.", 0) { ChatControls = new IntakeChatControls(true) }, nevaBridge.Calls.Single(c => c.Operation == "startIntakeTurn").Arguments["request"]);
         Assert.Equal(2, chat.Messages.Count);
     }
 
@@ -497,7 +497,7 @@ public sealed class IntakeHeldStartTests
 
         // Then
         Assert.DoesNotContain("startIntakeConversation", nevaBridge.Operations);
-        Assert.Equal(new StartIntakeTurnRequest("It crashes.", 0), nevaBridge.Calls.Single(c => c.Operation == "startIntakeTurn").Arguments["request"]);
+        Assert.Equal(new StartIntakeTurnRequest("It crashes.", 0) { ChatControls = new IntakeChatControls(true) }, nevaBridge.Calls.Single(c => c.Operation == "startIntakeTurn").Arguments["request"]);
     }
 
     [Fact]
@@ -616,7 +616,7 @@ public sealed class IntakeHeldStartTests
         // Then: the same conversation, still at revision 0, takes the message
         Assert.DoesNotContain("startIntakeConversation", nevaBridge.Operations);
         Assert.Equal(
-            [new StartIntakeTurnRequest("It crashes.", 0), new StartIntakeTurnRequest("It crashes.", 0)],
+            [new StartIntakeTurnRequest("It crashes.", 0) { ChatControls = new IntakeChatControls(true) }, new StartIntakeTurnRequest("It crashes.", 0) { ChatControls = new IntakeChatControls(true) }],
             nevaBridge.Calls.Where(c => c.Operation == "startIntakeTurn").Select(c => c.Arguments["request"]));
         Assert.Equal(2, chat.Messages.Count);
     }

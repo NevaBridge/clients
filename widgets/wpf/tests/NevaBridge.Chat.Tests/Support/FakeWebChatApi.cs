@@ -13,6 +13,7 @@ public sealed class FakeWebChatApi : INevaBridgeWebChatApi
     public const string ReportId = "report-00000000-0000-4000-8000-000000000003";
     public const string TurnId = "intaketurn-00000000-0000-4000-8000-000000000004";
     public const string NextTurnId = "intaketurn-00000000-0000-4000-8000-000000000005";
+    public const string MessageId = "message-00000000-0000-4000-8000-000000000006";
 
     private readonly List<RecordedCall> _calls = [];
 
@@ -37,10 +38,11 @@ public sealed class FakeWebChatApi : INevaBridgeWebChatApi
 
     public Task<JsonElement> AppendMessageAsync(
         string conversationId,
+        string actorId,
         AppendMessageRequest request,
         CancellationToken cancellationToken = default)
     {
-        Record("append", ("conversationId", conversationId), ("request", request));
+        Record("append", ("conversationId", conversationId), ("actorId", actorId), ("request", request));
         return Json(Turn(request.Content));
     }
 
@@ -122,11 +124,38 @@ public sealed class FakeWebChatApi : INevaBridgeWebChatApi
 
     public Task<JsonElement> GetConversationAsync(
         string conversationId,
+        string actorId,
         CancellationToken cancellationToken = default)
     {
-        Record("read", ("conversationId", conversationId));
+        Record("read", ("conversationId", conversationId), ("actorId", actorId));
         string activeTurn = ActiveTurnId is null ? string.Empty : $$""", "activeTurnId": "{{ActiveTurnId}}" """;
         return Json($$"""{"id": "{{ConversationId}}", "revision": 1{{activeTurn}}}""");
+    }
+
+    public Task<JsonElement> SetReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
+        ReplyRatingRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        Record("rate", ("conversationId", conversationId), ("messageId", messageId), ("actorId", actorId), ("request", request));
+        return Json($$"""
+            {
+              "conversationId": "{{conversationId}}", "messageId": "{{messageId}}",
+              "value": "{{request.Rating}}", "ratedAt": "2026-11-16T09:12:00.000Z"
+            }
+            """);
+    }
+
+    public Task ClearReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
+        CancellationToken cancellationToken = default)
+    {
+        Record("clearRating", ("conversationId", conversationId), ("messageId", messageId), ("actorId", actorId));
+        return Task.CompletedTask;
     }
 
     private void Record(string operation, params (string Name, object? Value)[] arguments)

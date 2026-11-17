@@ -2,7 +2,7 @@
 /* eslint-disable */
 /**
  * NevaBridge Tenant Integration API
- * This contract covers the operations a tenant\'s trusted backend may call to run a NevaBridge reporting conversation, attach files to it, and finalize the report it produces.  **Supported surface.** Only the operations in this document are supported commitments. A NevaBridge API key is tenant-wide and the gateway does not restrict it to these paths, so other routes may answer a request; they are internal, may change without notice, and are not covered by any compatibility promise. Build against this document only.  **Trust boundary.** The caller is the tenant\'s backend, not a browser. The API key must never reach an end user\'s device. `X-Actor-Id` is a correlation value the tenant chooses and NevaBridge stores verbatim; it is not an authorization boundary, and NevaBridge does not check that a caller \"owns\" the actor it names. `X-Actor-Roles` is trusted audience context from that backend. Tenant isolation comes from the API key alone.  **Feature entitlements.** Some behavior depends on features NevaBridge enables per tenant. A system-wide setting can switch a feature on or off for every tenant; otherwise the tenant\'s own entitlement decides. NevaBridge staff manage both, so ask NevaBridge to enable a feature. Each affected operation names its feature in its description and in `x-nevabridge-entitlements`:  - `chatAttachments`: every Attachments operation. Without it they answer 403   `Forbidden`, whose message names the feature. With it, a report delivered   to a tracker while its conversation holds uploaded files also carries an   attachment count and a link to the files in NevaBridge. Revoking the   entitlement keeps the files; granting it again makes them reachable again. - `knowledgebase`: `startConversation` and `appendMessage`. With it, and once   the tenant\'s knowledge base is ready, the assistant grounds its replies in   the tenant\'s documents that the conversation\'s `X-Actor-Roles` may read.   Without it, turns run the same way with no document retrieval and no   error, and `X-Actor-Roles` has no effect. - `genericIntake`: `startIntakeConversation` starts a Generic Intake   conversation, in which the assistant works out what the reporter needs   and files one report per finding when the conversation ends. Without   the entitlement it answers 403 `Forbidden`. `startIntakeTurn` continues   and finishes those conversations, `getIntakeTurnEvents` follows a   running turn, `listIntakeConversations` lists the conversations and   `getConversation` reads them. `listConversations` leaves them out, and   `appendMessage` refuses them. The Attachments operations accept them. - `voiceDictation` and `voiceConversation`: the Voice operations.   `createTranscriptionSession` needs either one, `synthesizeSpeech` needs   `voiceConversation`. Without them they answer 403 `Forbidden`, whose   message names the feature. `voiceDictation` stands for typing what the   reporter says; `voiceConversation` for the hands-free loop that also   reads the replies aloud. NevaBridge enforces only the operations; which   controls a client offers for each feature is its own choice.  **Generic Intake turns run in the background.** Starting a conversation or a turn answers 202 at once with a turn id; the assistant\'s reply is not in that response. Read the turn\'s progress and reply with `getIntakeTurnEvents` until its terminal event, then read the conversation with `getConversation`. Every request stays short, so no turn depends on a request\'s time limit. `getIntakeTurnEvents` describes the polling rules.  `getFeatures` reports which of these features the tenant has right now.  Every other behavior in this document is the same for all tenants.
+ * This contract covers the operations a tenant\'s trusted backend may call to run a NevaBridge reporting conversation, attach files to it, and finalize the report it produces.  **Supported surface.** Only the operations in this document are supported commitments. A NevaBridge API key is tenant-wide and the gateway does not restrict it to these paths, so other routes may answer a request; they are internal, may change without notice, and are not covered by any compatibility promise. Build against this document only.  **Trust boundary.** The caller is the tenant\'s backend, not a browser. The API key must never reach an end user\'s device. `X-Actor-Id` is a correlation value the tenant chooses and NevaBridge stores verbatim; it is not an authorization boundary, and NevaBridge does not check that a caller \"owns\" the actor it names. `X-Actor-Roles` is trusted audience context from that backend. Tenant isolation comes from the API key alone.  **Feature entitlements.** Some behavior depends on features NevaBridge enables per tenant. A system-wide setting can switch a feature on or off for every tenant; otherwise the tenant\'s own entitlement decides. NevaBridge staff manage both, so ask NevaBridge to enable a feature. Each affected operation names its feature in its description and in `x-nevabridge-entitlements`:  - `chatAttachments`: every Attachments operation. Without it they answer 403   `Forbidden`, whose message names the feature. With it, a report delivered   to a tracker while its conversation holds uploaded files also carries an   attachment count and a link to the files in NevaBridge. Revoking the   entitlement keeps the files; granting it again makes them reachable again. - `knowledgebase`: `startConversation` and `appendMessage`. With it, and once   the tenant\'s knowledge base is ready, the assistant grounds its replies in   the tenant\'s documents that the conversation\'s `X-Actor-Roles` may read.   Without it, turns run the same way with no document retrieval and no   error, and `X-Actor-Roles` has no effect. - `genericIntake`: `startIntakeConversation` starts a Generic Intake   conversation, in which the assistant works out what the reporter needs   and files one report per finding when the conversation ends. Without   the entitlement it answers 403 `Forbidden`. `startIntakeTurn` continues   and finishes those conversations, `getIntakeTurnEvents` follows a   running turn, `listIntakeConversations` lists the conversations and   `getConversation` reads them. `listConversations` leaves them out, and   `appendMessage` refuses them. The Attachments operations accept them. - `voiceDictation` and `voiceConversation`: the Voice operations.   `createTranscriptionSession` needs either one, `synthesizeSpeech` needs   `voiceConversation`. Without them they answer 403 `Forbidden`, whose   message names the feature. `voiceDictation` stands for typing what the   reporter says; `voiceConversation` for the hands-free loop that also   reads the replies aloud. NevaBridge enforces only the operations; which   controls a client offers for each feature is its own choice.  **Generic Intake turns run in the background.** Starting a conversation or a turn answers 202 at once with a turn id; the assistant\'s reply is not in that response. Read the turn\'s progress and reply with `getIntakeTurnEvents` until its terminal event, then read the conversation with `getConversation`. Every request stays short, so no turn depends on a request\'s time limit. `getIntakeTurnEvents` describes the polling rules.  - `replyRatings`: `setReplyRating` and `clearReplyRating`, with which the   conversation\'s participant gives a reply a thumbs up or down, and   `getConversation`, which then shows each reply\'s `rating`. Without it   the two operations answer 403 `Forbidden` and `getConversation` shows   no ratings; ratings stored before stay stored and reappear once the   feature is on again.  `getFeatures` reports which of these features the tenant has right now.  Every other behavior in this document is the same for all tenants.
  *
  * The version of the OpenAPI document: 1.0.0
  *
@@ -89,6 +89,16 @@ import {
     NevaBridgeErrorToJSON,
 } from '../models/NevaBridgeError.js';
 import {
+    type ReplyRating,
+    ReplyRatingFromJSON,
+    ReplyRatingToJSON,
+} from '../models/ReplyRating.js';
+import {
+    type ReplyRatingSetRequest,
+    ReplyRatingSetRequestFromJSON,
+    ReplyRatingSetRequestToJSON,
+} from '../models/ReplyRatingSetRequest.js';
+import {
     type StartConversation409Response,
     StartConversation409ResponseFromJSON,
     StartConversation409ResponseToJSON,
@@ -122,10 +132,18 @@ import {
 export interface AppendMessageOperationRequest {
     conversationId: string;
     appendMessageRequest: AppendMessageRequest;
+    xActorId?: string;
+}
+
+export interface ClearReplyRatingRequest {
+    conversationId: string;
+    messageId: string;
+    xActorId: string;
 }
 
 export interface GetConversationRequest {
     conversationId: string;
+    xActorId?: string;
 }
 
 export interface GetIntakeTurnEventsRequest {
@@ -145,6 +163,13 @@ export interface ListIntakeConversationsRequest {
     reporterId?: string;
     limit?: number;
     cursor?: string;
+}
+
+export interface SetReplyRatingRequest {
+    conversationId: string;
+    messageId: string;
+    xActorId: string;
+    replyRatingSetRequest: ReplyRatingSetRequest;
 }
 
 export interface StartConversationOperationRequest {
@@ -197,6 +222,10 @@ export class ConversationsApi extends runtime.BaseAPI {
 
         headerParameters['Content-Type'] = 'application/json';
 
+        if (requestParameters['xActorId'] != null) {
+            headerParameters['X-Actor-Id'] = String(requestParameters['xActorId']);
+        }
+
         if (this.configuration && this.configuration.accessToken) {
             const token = this.configuration.accessToken;
             const tokenString = await token("bearerAuth", []);
@@ -219,7 +248,7 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Posts the reporter\'s next message and returns the assistant\'s reply along with the conversation\'s complete report array. The array is never a delta, so a live UI can redraw from this response without a follow-up read.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is neither required nor read here.  With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startConversation`.  A Generic Intake conversation answers 400 and adds nothing: its turns run in the background through `startIntakeTurn`, which the message names.
+     * Posts the reporter\'s next message and returns the assistant\'s reply along with the conversation\'s complete report array. The array is never a delta, so a live UI can redraw from this response without a follow-up read.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is not required here and never changes the reporter.  With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startConversation`.  With the `replyRatings` entitlement, the reply carries an unrated `rating`, whose `canChange` is true only when `X-Actor-Id` names the conversation\'s participant.  A Generic Intake conversation answers 400 and adds nothing: its turns run in the background through `startIntakeTurn`, which the message names.
      * Append a turn
      */
     async appendMessageRaw(requestParameters: AppendMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ConversationTurn>> {
@@ -230,12 +259,85 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Posts the reporter\'s next message and returns the assistant\'s reply along with the conversation\'s complete report array. The array is never a delta, so a live UI can redraw from this response without a follow-up read.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is neither required nor read here.  With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startConversation`.  A Generic Intake conversation answers 400 and adds nothing: its turns run in the background through `startIntakeTurn`, which the message names.
+     * Posts the reporter\'s next message and returns the assistant\'s reply along with the conversation\'s complete report array. The array is never a delta, so a live UI can redraw from this response without a follow-up read.  The reporter\'s identity was fixed when the conversation started, so `X-Actor-Id` is not required here and never changes the reporter.  With the `knowledgebase` entitlement, the reply may draw on the tenant\'s knowledge base as described for `startConversation`.  With the `replyRatings` entitlement, the reply carries an unrated `rating`, whose `canChange` is true only when `X-Actor-Id` names the conversation\'s participant.  A Generic Intake conversation answers 400 and adds nothing: its turns run in the background through `startIntakeTurn`, which the message names.
      * Append a turn
      */
     async appendMessage(requestParameters: AppendMessageOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ConversationTurn> {
         const response = await this.appendMessageRaw(requestParameters, initOverrides);
         return await response.value();
+    }
+
+    /**
+     * Creates request options for clearReplyRating without sending the request
+     */
+    async clearReplyRatingRequestOpts(requestParameters: ClearReplyRatingRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['conversationId'] == null) {
+            throw new runtime.RequiredError(
+                'conversationId',
+                'Required parameter "conversationId" was null or undefined when calling clearReplyRating().'
+            );
+        }
+
+        if (requestParameters['messageId'] == null) {
+            throw new runtime.RequiredError(
+                'messageId',
+                'Required parameter "messageId" was null or undefined when calling clearReplyRating().'
+            );
+        }
+
+        if (requestParameters['xActorId'] == null) {
+            throw new runtime.RequiredError(
+                'xActorId',
+                'Required parameter "xActorId" was null or undefined when calling clearReplyRating().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        if (requestParameters['xActorId'] != null) {
+            headerParameters['X-Actor-Id'] = String(requestParameters['xActorId']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/v1/conversations/{conversationId}/messages/{messageId}/rating`;
+        urlPath = urlPath.replace('{conversationId}', encodeURIComponent(String(requestParameters['conversationId'])));
+        urlPath = urlPath.replace('{messageId}', encodeURIComponent(String(requestParameters['messageId'])));
+
+        return {
+            path: urlPath,
+            method: 'DELETE',
+            headers: headerParameters,
+            query: queryParameters,
+        };
+    }
+
+    /**
+     * Removes the participant\'s rating of one reply, with its comment. Clearing a reply that has no rating answers 204 too. `X-Actor-Id` must name the conversation\'s participant, as for `setReplyRating`.  Requires the `replyRatings` entitlement (403 otherwise).
+     * Clear a reply\'s rating
+     */
+    async clearReplyRatingRaw(requestParameters: ClearReplyRatingRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        const requestOptions = await this.clearReplyRatingRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.VoidApiResponse(response);
+    }
+
+    /**
+     * Removes the participant\'s rating of one reply, with its comment. Clearing a reply that has no rating answers 204 too. `X-Actor-Id` must name the conversation\'s participant, as for `setReplyRating`.  Requires the `replyRatings` entitlement (403 otherwise).
+     * Clear a reply\'s rating
+     */
+    async clearReplyRating(requestParameters: ClearReplyRatingRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.clearReplyRatingRaw(requestParameters, initOverrides);
     }
 
     /**
@@ -252,6 +354,10 @@ export class ConversationsApi extends runtime.BaseAPI {
         const queryParameters: any = {};
 
         const headerParameters: runtime.HTTPHeaders = {};
+
+        if (requestParameters['xActorId'] != null) {
+            headerParameters['X-Actor-Id'] = String(requestParameters['xActorId']);
+        }
 
         if (this.configuration && this.configuration.accessToken) {
             const token = this.configuration.accessToken;
@@ -274,7 +380,7 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Returns one conversation with its full message history and its current reports. Use it to render a transcript, and to poll for a report that a turn or the abandonment fallback has since finalized.  A Generic Intake conversation (see the `genericIntake` entitlement) answers in the same shape. Its `status` is `closed` once the conversation has ended, its `reports` hold the reports filed so far, and `revision` is the value to send as `expectedRevision` with the next `startIntakeTurn`. While a turn runs, `activeTurnId` names it, and its message is not in `messages` yet: a client that lost track of a turn, for example after a reload, resumes reading its events with that id. The assistant\'s working drafts are not exposed. Reading needs no entitlement. `reporterId` is returned so the tenant\'s backend can apply its own rules about who may see a conversation; NevaBridge does not apply any. A conversation from the first Generic Intake version, which predates this API, answers 400.
+     * Returns one conversation with its full message history and its current reports. Use it to render a transcript, and to poll for a report that a turn or the abandonment fallback has since finalized.  A Generic Intake conversation (see the `genericIntake` entitlement) answers in the same shape. Its `status` is `closed` once the conversation has ended, its `reports` hold the reports filed so far, and `revision` is the value to send as `expectedRevision` with the next `startIntakeTurn`. While a turn runs, `activeTurnId` names it, and its message is not in `messages` yet: a client that lost track of a turn, for example after a reload, resumes reading its events with that id. The assistant\'s working drafts are not exposed. Reading needs no entitlement. `reporterId` is returned so the tenant\'s backend can apply its own rules about who may see a conversation; NevaBridge does not apply any. With the `replyRatings` entitlement, every assistant reply that can be rated carries `rating`; its `canChange` is true only when the request\'s `X-Actor-Id` names the conversation\'s participant. A conversation from the first Generic Intake version, which predates this API, answers 400.
      * Read a conversation
      */
     async getConversationRaw(requestParameters: GetConversationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ConversationDetail>> {
@@ -285,7 +391,7 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Returns one conversation with its full message history and its current reports. Use it to render a transcript, and to poll for a report that a turn or the abandonment fallback has since finalized.  A Generic Intake conversation (see the `genericIntake` entitlement) answers in the same shape. Its `status` is `closed` once the conversation has ended, its `reports` hold the reports filed so far, and `revision` is the value to send as `expectedRevision` with the next `startIntakeTurn`. While a turn runs, `activeTurnId` names it, and its message is not in `messages` yet: a client that lost track of a turn, for example after a reload, resumes reading its events with that id. The assistant\'s working drafts are not exposed. Reading needs no entitlement. `reporterId` is returned so the tenant\'s backend can apply its own rules about who may see a conversation; NevaBridge does not apply any. A conversation from the first Generic Intake version, which predates this API, answers 400.
+     * Returns one conversation with its full message history and its current reports. Use it to render a transcript, and to poll for a report that a turn or the abandonment fallback has since finalized.  A Generic Intake conversation (see the `genericIntake` entitlement) answers in the same shape. Its `status` is `closed` once the conversation has ended, its `reports` hold the reports filed so far, and `revision` is the value to send as `expectedRevision` with the next `startIntakeTurn`. While a turn runs, `activeTurnId` names it, and its message is not in `messages` yet: a client that lost track of a turn, for example after a reload, resumes reading its events with that id. The assistant\'s working drafts are not exposed. Reading needs no entitlement. `reporterId` is returned so the tenant\'s backend can apply its own rules about who may see a conversation; NevaBridge does not apply any. With the `replyRatings` entitlement, every assistant reply that can be rated carries `rating`; its `canChange` is true only when the request\'s `X-Actor-Id` names the conversation\'s participant. A conversation from the first Generic Intake version, which predates this API, answers 400.
      * Read a conversation
      */
     async getConversation(requestParameters: GetConversationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ConversationDetail> {
@@ -487,6 +593,90 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
+     * Creates request options for setReplyRating without sending the request
+     */
+    async setReplyRatingRequestOpts(requestParameters: SetReplyRatingRequest): Promise<runtime.RequestOpts> {
+        if (requestParameters['conversationId'] == null) {
+            throw new runtime.RequiredError(
+                'conversationId',
+                'Required parameter "conversationId" was null or undefined when calling setReplyRating().'
+            );
+        }
+
+        if (requestParameters['messageId'] == null) {
+            throw new runtime.RequiredError(
+                'messageId',
+                'Required parameter "messageId" was null or undefined when calling setReplyRating().'
+            );
+        }
+
+        if (requestParameters['xActorId'] == null) {
+            throw new runtime.RequiredError(
+                'xActorId',
+                'Required parameter "xActorId" was null or undefined when calling setReplyRating().'
+            );
+        }
+
+        if (requestParameters['replyRatingSetRequest'] == null) {
+            throw new runtime.RequiredError(
+                'replyRatingSetRequest',
+                'Required parameter "replyRatingSetRequest" was null or undefined when calling setReplyRating().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+        if (requestParameters['xActorId'] != null) {
+            headerParameters['X-Actor-Id'] = String(requestParameters['xActorId']);
+        }
+
+        if (this.configuration && this.configuration.accessToken) {
+            const token = this.configuration.accessToken;
+            const tokenString = await token("bearerAuth", []);
+
+            if (tokenString) {
+                headerParameters["Authorization"] = `Bearer ${tokenString}`;
+            }
+        }
+
+        let urlPath = `/v1/conversations/{conversationId}/messages/{messageId}/rating`;
+        urlPath = urlPath.replace('{conversationId}', encodeURIComponent(String(requestParameters['conversationId'])));
+        urlPath = urlPath.replace('{messageId}', encodeURIComponent(String(requestParameters['messageId'])));
+
+        return {
+            path: urlPath,
+            method: 'PUT',
+            headers: headerParameters,
+            query: queryParameters,
+            body: ReplyRatingSetRequestToJSON(requestParameters['replyRatingSetRequest']),
+        };
+    }
+
+    /**
+     * Gives one assistant reply a thumbs up or a thumbs down for the conversation\'s participant, replacing any rating it had. A thumbs down may carry a comment of 1 to 1000 characters after trimming; a thumbs up carries none, so switching to it removes the comment.  Only the participant rates: `X-Actor-Id` must name the actor that started the conversation, its `reporterId`. The rating works on archived conversations, on conversations whose report was submitted and while a turn runs, and charges no credits.  Requires the `replyRatings` entitlement (403 otherwise).
+     * Rate a reply
+     */
+    async setReplyRatingRaw(requestParameters: SetReplyRatingRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ReplyRating>> {
+        const requestOptions = await this.setReplyRatingRequestOpts(requestParameters);
+        const response = await this.request(requestOptions, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => ReplyRatingFromJSON(jsonValue));
+    }
+
+    /**
+     * Gives one assistant reply a thumbs up or a thumbs down for the conversation\'s participant, replacing any rating it had. A thumbs down may carry a comment of 1 to 1000 characters after trimming; a thumbs up carries none, so switching to it removes the comment.  Only the participant rates: `X-Actor-Id` must name the actor that started the conversation, its `reporterId`. The rating works on archived conversations, on conversations whose report was submitted and while a turn runs, and charges no credits.  Requires the `replyRatings` entitlement (403 otherwise).
+     * Rate a reply
+     */
+    async setReplyRating(requestParameters: SetReplyRatingRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ReplyRating> {
+        const response = await this.setReplyRatingRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
      * Creates request options for startConversation without sending the request
      */
     async startConversationRequestOpts(requestParameters: StartConversationOperationRequest): Promise<runtime.RequestOpts> {
@@ -551,7 +741,7 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Starts a reporting conversation for one product and posts its first user message in the same call. The response carries that message, the assistant\'s reply, and the reports the turn produced.  This is the only operation that establishes the reporter\'s identity, so `X-Actor-Id` is required here and not accepted as an identity on later calls. (`requestAttachmentUpload` reads it separately, to label who uploaded a file.)  With the `knowledgebase` entitlement, the assistant\'s reply may draw on the tenant\'s knowledge base, limited to the documents `X-Actor-Roles` grants. Without it, the turn runs without retrieval.
+     * Starts a reporting conversation for one product and posts its first user message in the same call. The response carries that message, the assistant\'s reply, and the reports the turn produced.  This is the only operation that establishes the reporter\'s identity, so `X-Actor-Id` is required here, and no later call changes the reporter. (`requestAttachmentUpload` reads it separately, to label who uploaded a file, and `setReplyRating` and `clearReplyRating` read it to recognize the participant.)  With the `knowledgebase` entitlement, the assistant\'s reply may draw on the tenant\'s knowledge base, limited to the documents `X-Actor-Roles` grants. Without it, the turn runs without retrieval.  With the `replyRatings` entitlement, the reply carries an unrated `rating` the participant can change.
      * Start a conversation
      */
     async startConversationRaw(requestParameters: StartConversationOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<ConversationTurn>> {
@@ -562,7 +752,7 @@ export class ConversationsApi extends runtime.BaseAPI {
     }
 
     /**
-     * Starts a reporting conversation for one product and posts its first user message in the same call. The response carries that message, the assistant\'s reply, and the reports the turn produced.  This is the only operation that establishes the reporter\'s identity, so `X-Actor-Id` is required here and not accepted as an identity on later calls. (`requestAttachmentUpload` reads it separately, to label who uploaded a file.)  With the `knowledgebase` entitlement, the assistant\'s reply may draw on the tenant\'s knowledge base, limited to the documents `X-Actor-Roles` grants. Without it, the turn runs without retrieval.
+     * Starts a reporting conversation for one product and posts its first user message in the same call. The response carries that message, the assistant\'s reply, and the reports the turn produced.  This is the only operation that establishes the reporter\'s identity, so `X-Actor-Id` is required here, and no later call changes the reporter. (`requestAttachmentUpload` reads it separately, to label who uploaded a file, and `setReplyRating` and `clearReplyRating` read it to recognize the participant.)  With the `knowledgebase` entitlement, the assistant\'s reply may draw on the tenant\'s knowledge base, limited to the documents `X-Actor-Roles` grants. Without it, the turn runs without retrieval.  With the `replyRatings` entitlement, the reply carries an unrated `rating` the participant can change.
      * Start a conversation
      */
     async startConversation(requestParameters: StartConversationOperationRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<ConversationTurn> {

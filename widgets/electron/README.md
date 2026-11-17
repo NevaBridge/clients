@@ -131,7 +131,9 @@ shipped in this package still runs the classic chat.
 
 The chat reads your tenant's features when it opens; the page shows "Attach file" only when file
 attachments (`chatAttachments`) are enabled. The user picks a file in the operating system's dialog and
-the main process uploads it. Pass `allowAttachments: false` to never offer attachments.
+the main process uploads it. Pass `allowAttachments: false` to never offer attachments. With reply
+ratings (`replyRatings`), the page offers a thumbs up or down on each assistant reply, saved as the
+reporter.
 
 ## Security model
 

@@ -1,6 +1,7 @@
 import {NevaBridgeApiError, type JsonValue} from "@nevabridge/sdk";
 import {
   UploadFailedError,
+  type ChatControls,
   type NevaBridgeConversations,
   type PickedFile,
   type Reporter,
@@ -11,6 +12,8 @@ import {isSecureAddress, originOf} from "./secure-address.js";
 const MAX_MESSAGE_LENGTH = 32768;
 const MAX_REQUEST_ID_LENGTH = 64;
 const MAX_CURSOR_LENGTH = 1024;
+const MAX_RATING_COMMENT_LENGTH = 1000;
+const REPLY_RATINGS: ReadonlySet<string> = new Set(["up", "down"]);
 const REPORT_CATEGORIES: ReadonlySet<string> = new Set([
   "bug_report",
   "feature_request",
@@ -142,6 +145,22 @@ export function createWebChatBridge(
     }
     return value;
   };
+  const chatControls = (request: Request): ChatControls | undefined => {
+    const value = request["chatControls"];
+    if (value === undefined) {
+      return undefined;
+    }
+    if (
+      !isRecord(value) ||
+      typeof value["attachments"] !== "boolean" ||
+      Object.keys(value).length !== 1
+    ) {
+      throw new UnsupportedRequest(
+        "chatControls must be an object with only attachments: true or false.",
+      );
+    }
+    return {attachments: value["attachments"]};
+  };
   const startedConversation = (request: Request): string | null => {
     const conversationId = requiredString(request, "conversationId");
     return startedConversations.has(conversationId) ? conversationId : null;
@@ -188,7 +207,11 @@ export function createWebChatBridge(
           return unknownConversation();
         }
         return success(
-          await options.conversations.appendMessage(conversationId, message),
+          await options.conversations.appendMessage(
+            conversationId,
+            message,
+            options.reporter.id,
+          ),
         );
       }
       case "submitReport": {
@@ -203,15 +226,23 @@ export function createWebChatBridge(
       }
       case "getFeatures": {
         const features = await options.conversations.getFeatures();
-        // Without a file picker this host cannot attach files, whatever the tenant may do.
-        return success(
-          options.pickFile === undefined && isRecord(features)
-            ? {
-                ...(features as {[key: string]: JsonValue}),
-                chatAttachments: false,
-              }
-            : features,
-        );
+        if (!isRecord(features)) {
+          return success(features);
+        }
+        // A feature this host cannot serve stays off, whatever the tenant may do.
+        const served: {[key: string]: JsonValue} = {
+          ...(features as {[key: string]: JsonValue}),
+        };
+        if (options.pickFile === undefined) {
+          served["chatAttachments"] = false;
+        }
+        if (
+          options.conversations.setReplyRating === undefined ||
+          options.conversations.clearReplyRating === undefined
+        ) {
+          served["replyRatings"] = false;
+        }
+        return success(served);
       }
       case "attachFile": {
         const conversationId = startedConversation(request);
@@ -244,7 +275,11 @@ export function createWebChatBridge(
         const started = await options.conversations.startIntakeConversation(
           options.productId,
           options.reporter,
-          {text: text(request), applicationContext: options.applicationContext},
+          {
+            text: text(request),
+            chatControls: chatControls(request),
+            applicationContext: options.applicationContext,
+          },
         );
         rememberConversation(stringField(started, "conversationId"));
         rememberTurn(stringField(started, "turnId"));
@@ -255,6 +290,7 @@ export function createWebChatBridge(
         const message = text(request);
         const expectedRevision = request["expectedRevision"];
         const finish = request["finish"];
+        const controls = chatControls(request);
         if (
           typeof expectedRevision !== "number" ||
           !Number.isInteger(expectedRevision) ||
@@ -272,7 +308,7 @@ export function createWebChatBridge(
         }
         const started = await options.conversations.startIntakeTurn(
           conversationId,
-          {text: message, expectedRevision, finish},
+          {text: message, expectedRevision, finish, chatControls: controls},
         );
         rememberTurn(stringField(started, "turnId"));
         return success(started);
@@ -307,8 +343,10 @@ export function createWebChatBridge(
         if (conversationId === null) {
           return unknownConversation();
         }
-        const detail =
-          await options.conversations.getConversation(conversationId);
+        const detail = await options.conversations.getConversation(
+          conversationId,
+          options.reporter.id,
+        );
         rememberTurn(stringField(detail, "activeTurnId"));
         return success(detail);
       }
@@ -320,6 +358,60 @@ export function createWebChatBridge(
         await options.conversations.deleteAttachment(
           conversationId,
           requiredString(request, "attachmentId"),
+        );
+        // The API answers 204 without a body; the protocol's result for it is the empty object.
+        return success({});
+      }
+      case "setReplyRating": {
+        const conversationId = startedConversation(request);
+        const messageId = requiredString(request, "messageId");
+        const rating = request["rating"];
+        const comment = request["comment"];
+        if (typeof rating !== "string" || !REPLY_RATINGS.has(rating)) {
+          throw new UnsupportedRequest("rating must be up or down.");
+        }
+        if (
+          comment !== undefined &&
+          (typeof comment !== "string" ||
+            comment.length === 0 ||
+            comment.length > MAX_RATING_COMMENT_LENGTH)
+        ) {
+          throw new UnsupportedRequest(
+            `comment must contain 1 to ${MAX_RATING_COMMENT_LENGTH} characters.`,
+          );
+        }
+        if (conversationId === null) {
+          return unknownConversation();
+        }
+        if (options.conversations.setReplyRating === undefined) {
+          throw new UnsupportedRequest(
+            "This application does not save reply ratings.",
+          );
+        }
+        return success(
+          await options.conversations.setReplyRating(
+            conversationId,
+            messageId,
+            options.reporter.id,
+            {rating: rating as "up" | "down", comment},
+          ),
+        );
+      }
+      case "clearReplyRating": {
+        const conversationId = startedConversation(request);
+        const messageId = requiredString(request, "messageId");
+        if (conversationId === null) {
+          return unknownConversation();
+        }
+        if (options.conversations.clearReplyRating === undefined) {
+          throw new UnsupportedRequest(
+            "This application does not save reply ratings.",
+          );
+        }
+        await options.conversations.clearReplyRating(
+          conversationId,
+          messageId,
+          options.reporter.id,
         );
         // The API answers 204 without a body; the protocol's result for it is the empty object.
         return success({});

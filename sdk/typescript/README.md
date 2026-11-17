@@ -286,6 +286,8 @@ const audio = Buffer.from(speech.audioBase64, "base64"); // MP3
 - `startHeldIntakeConversation`
 - `listIntakeConversations`
 - `getFeatures`
+- `setReplyRating`
+- `clearReplyRating`
 - `createTranscriptionSession`
 - `synthesizeSpeech`
 

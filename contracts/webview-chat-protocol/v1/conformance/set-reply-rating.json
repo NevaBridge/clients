@@ -1,0 +1,47 @@
+{
+  "name": "set-reply-rating",
+  "description": "The page rates a reply with a thumbs down and a comment. The host names its user as the rater with X-Actor-Id and relays the stored rating.",
+  "host": {
+    "productId": "product-2f6a1c58-51b7-4a0e-9d0e-63a8b0e5c111",
+    "actorId": "user-4821"
+  },
+  "startedConversations": ["conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c"],
+  "request": {
+    "id": "r7",
+    "type": "setReplyRating",
+    "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+    "messageId": "message-3b9e2f10-7c1d-4e8a-a6b5-0f1e2d3c4b5a",
+    "rating": "down",
+    "comment": "It asked for the browser twice."
+  },
+  "apiCalls": [
+    {
+      "operationId": "setReplyRating",
+      "method": "PUT",
+      "path": "/v1/conversations/conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c/messages/message-3b9e2f10-7c1d-4e8a-a6b5-0f1e2d3c4b5a/rating",
+      "headers": {"X-Actor-Id": "user-4821"},
+      "body": {"rating": "down", "comment": "It asked for the browser twice."},
+      "response": {
+        "status": 200,
+        "body": {
+          "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+          "messageId": "message-3b9e2f10-7c1d-4e8a-a6b5-0f1e2d3c4b5a",
+          "value": "down",
+          "comment": "It asked for the browser twice.",
+          "ratedAt": "2026-11-16T09:12:00.000Z"
+        }
+      }
+    }
+  ],
+  "response": {
+    "id": "r7",
+    "ok": true,
+    "result": {
+      "conversationId": "conversation-8c41d0f2-9a3e-4a77-b0c1-1d2e3f4a5b6c",
+      "messageId": "message-3b9e2f10-7c1d-4e8a-a6b5-0f1e2d3c4b5a",
+      "value": "down",
+      "comment": "It asked for the browser twice.",
+      "ratedAt": "2026-11-16T09:12:00.000Z"
+    }
+  }
+}

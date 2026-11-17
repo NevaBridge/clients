@@ -64,12 +64,12 @@ public sealed class NevaBridgeClient :
         string conversationId,
         AppendMessageRequest request,
         CancellationToken cancellationToken = default) =>
-        SendAsync<ConversationTurn>(AppendMessageRequestMessage(conversationId, request), cancellationToken);
+        SendAsync<ConversationTurn>(AppendMessageRequestMessage(conversationId, actorId: null, request), cancellationToken);
 
     public Task<ConversationDetail> GetConversationAsync(
         string conversationId,
         CancellationToken cancellationToken = default) =>
-        SendAsync<ConversationDetail>(GetConversationRequestMessage(conversationId), cancellationToken);
+        SendAsync<ConversationDetail>(GetConversationRequestMessage(conversationId, actorId: null), cancellationToken);
 
     public Task<SubmitReportResult> SubmitReportAsync(
         string conversationId,
@@ -222,9 +222,10 @@ public sealed class NevaBridgeClient :
 
     Task<JsonElement> INevaBridgeWebChatApi.AppendMessageAsync(
         string conversationId,
+        string actorId,
         AppendMessageRequest request,
         CancellationToken cancellationToken) =>
-        SendJsonAsync(AppendMessageRequestMessage(conversationId, request), cancellationToken);
+        SendJsonAsync(AppendMessageRequestMessage(conversationId, actorId, request), cancellationToken);
 
     Task<JsonElement> INevaBridgeWebChatApi.SubmitReportAsync(
         string conversationId,
@@ -276,8 +277,40 @@ public sealed class NevaBridgeClient :
 
     Task<JsonElement> INevaBridgeWebChatApi.GetConversationAsync(
         string conversationId,
+        string actorId,
         CancellationToken cancellationToken) =>
-        SendJsonAsync(GetConversationRequestMessage(conversationId), cancellationToken);
+        SendJsonAsync(GetConversationRequestMessage(conversationId, actorId), cancellationToken);
+
+    Task<JsonElement> INevaBridgeWebChatApi.SetReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
+        ReplyRatingRequest request,
+        CancellationToken cancellationToken)
+    {
+        HttpRequestMessage message = CreateRequest(HttpMethod.Put, ReplyRatingPath(conversationId, messageId), request);
+        message.Headers.Add("X-Actor-Id", actorId);
+        return SendJsonAsync(message, cancellationToken);
+    }
+
+    async Task INevaBridgeWebChatApi.ClearReplyRatingAsync(
+        string conversationId,
+        string messageId,
+        string actorId,
+        CancellationToken cancellationToken)
+    {
+        using HttpRequestMessage message = CreateRequest(HttpMethod.Delete, ReplyRatingPath(conversationId, messageId), null);
+        message.Headers.Add("X-Actor-Id", actorId);
+        using HttpResponseMessage response = await _http.SendAsync(message, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            string body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            throw ApiErrors.FromResponse((int)response.StatusCode, body);
+        }
+    }
+
+    private static string ReplyRatingPath(string conversationId, string messageId) =>
+        $"v1/conversations/{Uri.EscapeDataString(conversationId)}/messages/{Uri.EscapeDataString(messageId)}/rating";
 
     /// <summary>
     /// Header values are ASCII, and NevaBridge percent-decodes this one. A name of printable ASCII
@@ -341,11 +374,28 @@ public sealed class NevaBridgeClient :
         return CreateRequest(HttpMethod.Get, $"v1/intake-turns/{Uri.EscapeDataString(turnId)}/events?{query}", null);
     }
 
-    private HttpRequestMessage AppendMessageRequestMessage(string conversationId, AppendMessageRequest request) =>
-        CreateRequest(HttpMethod.Post, $"v1/conversations/{Uri.EscapeDataString(conversationId)}/messages", request);
+    /// <param name="actorId">
+    /// The user sending it, sent as <c>X-Actor-Id</c> when known: NevaBridge then marks the
+    /// participant's own replies as ratable.
+    /// </param>
+    private HttpRequestMessage AppendMessageRequestMessage(string conversationId, string? actorId, AppendMessageRequest request) =>
+        WithActor(
+            CreateRequest(HttpMethod.Post, $"v1/conversations/{Uri.EscapeDataString(conversationId)}/messages", request),
+            actorId);
 
-    private HttpRequestMessage GetConversationRequestMessage(string conversationId) =>
-        CreateRequest(HttpMethod.Get, $"v1/conversations/{Uri.EscapeDataString(conversationId)}", null);
+    /// <param name="actorId">The user reading it; see <see cref="AppendMessageRequestMessage"/>.</param>
+    private HttpRequestMessage GetConversationRequestMessage(string conversationId, string? actorId) =>
+        WithActor(CreateRequest(HttpMethod.Get, $"v1/conversations/{Uri.EscapeDataString(conversationId)}", null), actorId);
+
+    private static HttpRequestMessage WithActor(HttpRequestMessage message, string? actorId)
+    {
+        if (actorId is not null)
+        {
+            message.Headers.Add("X-Actor-Id", actorId);
+        }
+
+        return message;
+    }
 
     private HttpRequestMessage SubmitReportRequestMessage(string conversationId, string reportId) =>
         CreateRequest(

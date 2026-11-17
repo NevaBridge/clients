@@ -8,6 +8,17 @@ classic chat, which is unchanged.
 
 ### Added
 
+- The web chat requests `setReplyRating` and `clearReplyRating` in `WebChatBridge`, which rate an
+  assistant reply as the reporter, for a conversation the page started.
+  `INevaBridgeWebChatApi` gains `SetReplyRatingAsync` and `ClearReplyRatingAsync`
+  (`ReplyRatingRequest`), which the sample's `NevaBridgeClient` already has; an implementation of
+  your own needs them too.
+- The native Generic Intake chat tells the assistant with every message whether it offers attaching
+  once the reply is shown (`IntakeChatControls` on `UserMessage.ChatControls` and
+  `StartIntakeTurnRequest.ChatControls`), so it asks for a file only when the user can attach one.
+  `WebChatBridge` passes on what the page sends. An `INevaBridgeIntakeConversations` that calls your
+  own backend should forward the field.
+
 - The optional web chat request `deleteAttachment` in `WebChatBridge`, which removes a file the
   page attached, for a conversation the page started; the hosted page offers removal once a host
   answers it. `INevaBridgeWebChatApi` gains `DeleteAttachmentAsync`, which the sample's
@@ -53,6 +64,11 @@ classic chat, which is unchanged.
   `NevaBridgeUploadException`.
 
 ### Changed
+
+- **Breaking for an `INevaBridgeWebChatApi` of your own:** `AppendMessageAsync` and
+  `GetConversationAsync` take the reporter's `actorId`, sent as `X-Actor-Id`. With `replyRatings`,
+  NevaBridge marks a reply as ratable only for the conversation's participant, so without it every
+  rating shows read-only.
 
 - The WPF example sends knowledge roles for its reporter (`anonymous` and `customer`), and the
   example and the integration guide explain how to choose them. Before, the example sent none, so

@@ -10,6 +10,23 @@ every addition and breaking change:
 Entries are dated by the day they reached `main`. To upgrade, read every entry since the revision
 you last took.
 
+## 2026-11-16
+
+### All packages
+
+- **Reply ratings**: the user can give an assistant reply a thumbs up or down, with a comment on a
+  thumbs down, when the tenant has `replyRatings`. Both web chat bridges answer the page's new
+  `setReplyRating` and `clearReplyRating` requests as the reporter, and name the reporter on
+  conversation reads and follow-ups, so NevaBridge marks their own replies as ratable. The TypeScript
+  SDK gains `setReplyRating` and `clearReplyRating`.
+- **The assistant knows whether the chat takes files**: a Generic Intake turn carries
+  `chatControls`, saying whether the attach control is offered once the reply is shown. The native
+  WPF chat sends it with every message, and both web chat bridges pass on what the page sends.
+  Without it, the assistant asks for no files.
+- The vendored contract and the webview chat bridge protocol move to the revision with both. An
+  implementation of your own of `INevaBridgeWebChatApi` (WPF) needs the new operations and
+  parameters; see the package changelogs.
+
 ## 2026-11-13
 
 ### TypeScript SDK

@@ -24,6 +24,10 @@
       "type": "string",
       "pattern": "^attachment-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
     },
+    "MessageId": {
+      "type": "string",
+      "pattern": "^message-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+    },
     "MessageText": {
       "type": "string",
       "minLength": 1,
@@ -136,6 +140,9 @@
         },
         "text": {
           "$ref": "#/$defs/MessageText"
+        },
+        "chatControls": {
+          "$ref": "#/$defs/ChatControls"
         }
       },
       "required": ["id", "type", "text"],
@@ -165,6 +172,9 @@
         },
         "finish": {
           "type": "boolean"
+        },
+        "chatControls": {
+          "$ref": "#/$defs/ChatControls"
         }
       },
       "required": ["id", "type", "conversationId", "text", "expectedRevision"],
@@ -238,6 +248,59 @@
       "x-api-operation": "deleteAttachment",
       "x-empty-result": true
     },
+    "SetReplyRatingRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "setReplyRating"
+        },
+        "conversationId": {
+          "$ref": "#/$defs/ConversationId"
+        },
+        "messageId": {
+          "$ref": "#/$defs/MessageId"
+        },
+        "rating": {
+          "enum": ["up", "down"]
+        },
+        "comment": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "description": "Only with down."
+        }
+      },
+      "required": ["id", "type", "conversationId", "messageId", "rating"],
+      "additionalProperties": false,
+      "x-optional": true,
+      "x-api-operation": "setReplyRating",
+      "x-result-schema": "ReplyRating"
+    },
+    "ClearReplyRatingRequest": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/RequestId"
+        },
+        "type": {
+          "const": "clearReplyRating"
+        },
+        "conversationId": {
+          "$ref": "#/$defs/ConversationId"
+        },
+        "messageId": {
+          "$ref": "#/$defs/MessageId"
+        }
+      },
+      "required": ["id", "type", "conversationId", "messageId"],
+      "additionalProperties": false,
+      "x-optional": true,
+      "x-api-operation": "clearReplyRating",
+      "x-empty-result": true
+    },
     "Request": {
       "oneOf": [
         {
@@ -269,6 +332,12 @@
         },
         {
           "$ref": "#/$defs/DeleteAttachmentRequest"
+        },
+        {
+          "$ref": "#/$defs/SetReplyRatingRequest"
+        },
+        {
+          "$ref": "#/$defs/ClearReplyRatingRequest"
         }
       ]
     },
@@ -340,6 +409,17 @@
           "$ref": "#/$defs/ErrorResponse"
         }
       ]
+    },
+    "ChatControls": {
+      "type": "object",
+      "description": "The controls the page offers once the reply to this turn is shown. The host sends it to the API unchanged: as `userMessage.chatControls` for `startIntakeConversation`, as `chatControls` for `startIntakeTurn`.",
+      "properties": {
+        "attachments": {
+          "type": "boolean"
+        }
+      },
+      "required": ["attachments"],
+      "additionalProperties": false
     }
   }
 }
