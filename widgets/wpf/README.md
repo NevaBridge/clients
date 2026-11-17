@@ -15,11 +15,11 @@ The package runs two kinds of conversation:
 
 - **Generic Intake** (`NevaBridgeIntakeChatControl`, and the hosted web chat when the tenant has
   Generic Intake): the assistant works out what the reporter needs, answers questions, and one
-  conversation can file several reports. It supports file attachments, dictation and a hands-free
-  voice conversation.
+  conversation can file several reports. It supports file attachments, dictation, a hands-free
+  voice conversation and reply ratings.
 - **The classic chat** (`NevaBridgeChatControl`): the reporter first picks a report type (bug
   report, feature request or support request), and one conversation files one report. It has no
-  attachments and no voice.
+  attachments, no voice and no reply ratings.
 
 We recommend Generic Intake for every new integration and for upgrading an existing one. Hide the
 classic chat UI from your users rather than offering both. If you want a way back in an
@@ -55,7 +55,9 @@ running is followed rather than started twice.
   aloud and listens again. Requires `voiceConversation`.
 - **Reply ratings:** in the native Generic Intake chat, the reporter gives each assistant reply a
   thumbs up or down and may say what was wrong with a bad one. Requires `replyRatings`. The
-  ratings appear on the Reply ratings page in NevaBridge.
+  ratings appear on the Reply ratings page in NevaBridge, where the tenant compares how well each
+  model answers. We recommend offering them wherever the tenant has the feature; the chat draws
+  the control, so the application only passes `IntakeChatOptions.ReplyRatings`.
 
 ### Turning features on and off: configuration or code
 
@@ -67,8 +69,8 @@ For your own decision, choose what fits your release process:
 
 - **Feature switches in configuration**, as the sample does with its
   [features file](../../samples/dotnet-wpf/README.md#features-file): you can switch each chat,
-  attachments, dictation and the hands-free conversation on or off per installation without a
-  rebuild. This also gives you the emergency switch back to the classic chat described above.
+  attachments, dictation, the hands-free conversation and reply ratings on or off per
+  installation without a rebuild. This also gives you the emergency switch back to the classic chat described above.
 - **Fixed in code**: decide once which features your UI offers and leave out the switches. This is
   simpler when every installation should look the same.
 

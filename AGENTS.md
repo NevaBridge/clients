@@ -38,9 +38,15 @@ chat. This repository is your reference; you do not commit to it.
   arrive in steps, a few seconds apart at first. Every waiting state needs visible activity: an
   animation plus the status text from `IntakeChatViewModel.ProgressText`. Never block the UI
   thread while waiting.
-- **Gate every feature twice.** Offer a chat, attachments, dictation or the hands-free conversation
-  only when the application wants it and the tenant's gate allows it: `genericIntake`,
-  `chatAttachments`, `voiceDictation`, `voiceConversation` from `GetFeaturesAsync`. Whether the
+- **Offer reply ratings.** In the native Generic Intake chat, set `IntakeChatOptions.ReplyRatings`
+  to the application's `INevaBridgeReplyRatings` (the sample's `NevaBridgeClient` is one), so the
+  user can give each assistant reply a thumbs up or down and say what was wrong with a bad one. The
+  chat draws the control itself; do not build a separate rating UI. Like every feature it is gated
+  twice (next point): pass it only when the tenant has `replyRatings`. The hosted web chat shows
+  ratings on its own once the tenant has the feature.
+- **Gate every feature twice.** Offer a chat, attachments, dictation, the hands-free conversation or
+  reply ratings only when the application wants it and the tenant's gate allows it: `genericIntake`,
+  `chatAttachments`, `voiceDictation`, `voiceConversation`, `replyRatings` from `GetFeaturesAsync`. Whether the
   application's own decision lives in a configuration file (as in the sample's
   `nevabridge-features.json` with `SampleFeatures.cs` and `NevaBridgeFeatureSwitches.cs`) or is
   fixed in code is the application owner's choice; ask if it is not stated.
@@ -61,12 +67,14 @@ chat. This repository is your reference; you do not commit to it.
    sample client `src/NevaBridge.Sample.Client/NevaBridgeClient.cs`. Port changes in those files
    into the application's equivalents, keeping its own settings source, user mapping and styling.
 4. If the application implements `INevaBridgeConversations`, `INevaBridgeIntakeConversations`,
-   `INevaBridgeVoice` or `INevaBridgeWebChatApi` itself (for example to call its own backend),
+   `INevaBridgeVoice`, `INevaBridgeReplyRatings` or `INevaBridgeWebChatApi` itself (for example to
+   call its own backend),
    add every operation the new revision declares. The upgrade recipes in the sample guide list
    each operation with its HTTP request.
 5. Verify against a NevaBridge sandbox product, never production: send messages and watch the
-   status while the reply grows, attach and remove a file, dictate, run a hands-free exchange,
-   press Finish and check the filed reports in NevaBridge. Voice needs a real microphone on
+   status while the reply grows, attach and remove a file, dictate, run a hands-free exchange, rate
+   a reply up and another down with a comment, press Finish and check the filed reports and the
+   Reply ratings page in NevaBridge. Voice needs a real microphone on
    Windows.
 6. Report the known limitations from the feature doc to the application owner rather than working
    around them in the application.
